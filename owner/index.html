@@ -877,11 +877,20 @@
     async function loadGrounds() {
       try {
         state.grounds = await sbFetch('grounds?select=*&status=eq.active&order=name.asc');
+        
+        // Check for ?ground=slug or ?ground=uuid URL param for direct owner link
+        const urlParams = new URLSearchParams(window.location.search);
+        const groundParam = urlParams.get('ground');
+        if (groundParam) {
+          const match = state.grounds.find(g => g.slug === groundParam || g.id === groundParam);
+          if (match) state.currentGround = match;
+        }
+
         if (state.grounds.length > 0 && !state.currentGround) {
           state.currentGround = state.grounds[0];
         }
         const select = document.getElementById('owner-ground-select');
-        select.innerHTML = state.grounds.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+        select.innerHTML = state.grounds.map(g => `<option value="${g.id}" ${state.currentGround?.id === g.id ? 'selected' : ''}>${g.name}</option>`).join('');
         if (state.currentGround) {
           document.getElementById('owner-manager-name').textContent = state.currentGround.contact_name || state.currentGround.name;
         }
