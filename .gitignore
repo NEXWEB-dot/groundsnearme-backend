@@ -1,0 +1,19 @@
+﻿**/node_modules/
+node_modules/
+**/.wrangler/
+.wrangler/
+.env
+.env.*
+!.env.example
+
+# Wrangler's local secret file: holds SUPABASE_SERVICE_ROLE_KEY and the JWT
+# secret. The glob also covers editor and tool backups (.dev.vars.bak, .swp).
+# Only `.dev.vars.example` belongs in the repository.
+**/.dev.vars*
+.dev.vars*
+!**/.dev.vars.example
+!.dev.vars.example
+
+dist/
+.DS_Store
+Thumbs.db

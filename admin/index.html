@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GroundsNearMe — Admin & Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/bold/style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.0.3/src/index.js"></script>
+  <style>
+    :root {
+      --white: #ffffff;
+      --off: #f4f6f5;
+      --canvas: #eef2ef;
+      --emerald: #0d4a2c;
+      --emerald-mid: #1a6b40;
+      --emerald-light: #e8f4ed;
+      --lime: #4ade80;
+      --lime-dark: #22c55e;
+      --ink: #0d1a0f;
+      --muted: #526659;
+      --muted-light: #8fa195;
+      --border: #dbe5de;
+      --border-subtle: #e8efe9;
+      --card-bg: #f0f7f3;
+      --danger: #ef4444;
+      --danger-bg: #fee2e2;
+      --warning: #f59e0b;
+      --warning-bg: #fef3c7;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 26px;
+      --shadow-sm: 0 1px 3px rgba(13,26,15,0.04);
+      --shadow-md: 0 6px 24px -4px rgba(13,26,15,0.06), 0 2px 6px -1px rgba(13,26,15,0.02);
+      --shadow-lg: 0 16px 40px -8px rgba(13,26,15,0.08);
+      --shadow-modal: 0 25px 60px -12px rgba(13,26,15,0.22);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--off);
+      color: var(--ink);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      display: flex;
+      height: 100vh;
+    }
+
+    button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .display-num { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+
+    #app {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      background: var(--off);
+      padding: 16px;
+      gap: 16px;
+    }
+
+    aside.sidebar {
+      width: 260px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: var(--shadow-md);
+      flex-shrink: 0;
+    }
+
+    .brand-header {
+      padding: 0 10px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--emerald);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .brand-badge {
+      background: var(--emerald-light);
+      color: var(--emerald);
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border: 1px solid var(--border);
+    }
+    .brand-env {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--lime-dark);
+      box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+    }
+
+    .nav-group {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .nav-label {
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted-light);
+      padding: 8px 12px 4px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .nav-item:hover {
+      background: var(--card-bg);
+      color: var(--emerald);
+    }
+    .nav-item.active {
+      background: var(--emerald-light);
+      color: var(--emerald);
+      border-color: rgba(13, 74, 44, 0.12);
+      font-weight: 700;
+    }
+    .nav-item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-item i {
+      font-size: 1.15rem;
+    }
+    .nav-count {
+      background: var(--white);
+      color: var(--emerald);
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .nav-item.active .nav-count {
+      background: var(--emerald);
+      color: var(--white);
+      border-color: var(--emerald);
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 16px;
+    }
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .user-card:hover {
+      background: #e5f1ea;
+    }
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--emerald);
+      color: var(--lime);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+    }
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .user-name {
+      font-weight: 700;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--ink);
+    }
+    .user-role {
+      font-size: 0.7rem;
+      color: var(--lime-dark);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    main.viewport {
+      flex: 1;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    header.topbar {
+      height: 70px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+    .page-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+      user-select: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--lime);
+      color: var(--emerald);
+      border-color: rgba(13, 74, 44, 0.1);
+    }
+    .btn-primary:hover {
+      background: var(--lime-dark);
+      color: var(--white);
+    }
+    .btn-emerald {
+      background: var(--emerald);
+      color: var(--white);
+    }
+    .btn-emerald:hover {
+      background: var(--emerald-mid);
+    }
+    .btn-secondary {
+      background: var(--card-bg);
+      color: var(--emerald);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover {
+      background: #e2ede6;
+      border-color: #c5d8cc;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+    }
+    .btn-ghost:hover {
+      background: var(--off);
+      color: var(--ink);
+    }
+    .btn-sm { padding: 6px 12px; font-size: 0.75rem; border-radius: var(--radius-sm); }
+    .btn-icon-only { width: 38px; height: 38px; padding: 0; border-radius: var(--radius-md); }
+
+    .search-box {
+      position: relative;
+      width: 280px;
+    }
+    .search-box i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted-light);
+      font-size: 1rem;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 9px 12px 9px 36px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--off);
+      outline: none;
+      transition: all 0.2s;
+      font-size: 0.8125rem;
+    }
+    .search-box input:focus {
+      background: var(--white);
+      border-color: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(13, 74, 44, 0.08);
+    }
+
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px 40px;
+      background: var(--white);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-open, .badge-active, .badge-confirmed, .badge-paid {
+      background: var(--lime);
+      color: var(--emerald);
+    }
+    .badge-pending, .badge-unpaid, .badge-onboarding {
+      background: var(--warning-bg);
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .badge-full, .badge-closed, .badge-cancelled, .badge-rejected {
+      background: var(--border);
+      color: var(--muted);
+    }
+    .badge-pro {
+      background: var(--emerald);
+      color: var(--lime);
+    }
+    .badge-draft {
+      background: #f1f5f9;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--off);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover {
+      border-color: #bcd4c4;
+      transform: translateY(-2px);
+    }
+    .stat-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-icon-wrap {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--emerald);
+      font-size: 1.1rem;
+    }
+    .stat-value {
+      font-size: 1.85rem;
+      color: var(--ink);
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .stat-sub {
+      font-size: 0.725rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .stat-sub.positive { color: var(--lime-dark); font-weight: 700; }
+
+    .dashboard-split {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--white);
+    }
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    table.data-table th {
+      background: var(--off);
+      padding: 11px 16px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    table.data-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.8125rem;
+      vertical-align: middle;
+    }
+    table.data-table tr:hover td {
+      background: #f8faf8;
+    }
+    table.data-table tr.clickable {
+      cursor: pointer;
+    }
+    table.data-table tr.selected td {
+      background: var(--emerald-light);
+    }
+
+    .inspector-panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      position: sticky;
+      top: 0;
+    }
+    .inspector-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .inspector-crumb {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .inspector-big-val {
+      font-size: 2.2rem;
+      margin-bottom: 16px;
+      color: var(--ink);
+    }
+    .inspector-card-preview {
+      background: var(--off);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .preview-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: var(--emerald);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .preview-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .inspector-section-label {
+      font-size: 0.6875rem;
+      font-weight: 800;
+      color: var(--muted-light);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+    .inspector-detail-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.8125rem;
+    }
+    .inspector-detail-row:last-child {
+      border-bottom: none;
+    }
+    .inspector-detail-label {
+      color: var(--muted);
+    }
+    .inspector-detail-val {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 26, 15, 0.45);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .modal-dialog {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      width: 100%;
+      max-width: 640px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-modal);
+      transform: translateY(20px) scale(0.97);
+      transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .modal-backdrop.open .modal-dialog {
+      transform: translateY(0) scale(1);
+    }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      background: var(--off);
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    }
+
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .form-control {
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--off);
+      outline: none;
+      font-size: 0.8125rem;
+      transition: all 0.2s;
+    }
+    .form-control:focus {
+      background: var(--white);
+      border-color: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(13, 74, 44, 0.08);
+    }
+    textarea.form-control {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 3000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .toast {
+      background: var(--ink);
+      color: var(--white);
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastSlideIn 0.3s cubic-bezier(0.2,0,0,1);
+    }
+    .toast.success { background: var(--emerald); color: var(--white); border-left: 4px solid var(--lime); }
+    .toast.error { background: #991b1b; color: var(--white); border-left: 4px solid var(--danger); }
+    @keyframes toastSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .tab-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--off);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+    .tab-pill {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-pill.active {
+      background: var(--white);
+      color: var(--emerald);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty-state i {
+      font-size: 3rem;
+      color: var(--muted-light);
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div>
+        <div class="brand-header">
+          <div class="brand-logo">
+            <i class="ph ph-shield-check" style="font-size:1.4rem; color:var(--lime-dark);"></i>
+            <span>GroundsNearMe</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
+            <span class="brand-badge">Superadmin Ops</span>
+            <div class="brand-env">
+              <span class="status-dot"></span>
+              <span id="connection-status">Live DB</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Management</span>
+          <div class="nav-item active" data-view="overview" onclick="switchView('overview')">
+            <div class="nav-item-left">
+              <i class="ph ph-squares-four"></i>
+              <span>Overview</span>
+            </div>
+          </div>
+          <div class="nav-item" data-view="grounds" onclick="switchView('grounds')">
+            <div class="nav-item-left">
+              <i class="ph ph-map-pin"></i>
+              <span>Grounds</span>
+            </div>
+            <span class="nav-count" id="nav-grounds-count">3</span>
+          </div>
+          <div class="nav-item" data-view="bookings" onclick="switchView('bookings')">
+            <div class="nav-item-left">
+              <i class="ph ph-calendar-check"></i>
+              <span>Bookings</span>
+            </div>
+            <span class="nav-count" id="nav-bookings-count">0</span>
+          </div>
+
+          <span class="nav-label" style="margin-top:14px;">Commercial</span>
+          <div class="nav-item" data-view="leads" onclick="switchView('leads')">
+            <div class="nav-item-left">
+              <i class="ph ph-whatsapp-logo"></i>
+              <span>Leads CRM</span>
+            </div>
+            <span class="nav-count" id="nav-leads-count">0</span>
+          </div>
+          <div class="nav-item" data-view="subscriptions" onclick="switchView('subscriptions')">
+            <div class="nav-item-left">
+              <i class="ph ph-receipt"></i>
+              <span>Subscriptions</span>
+            </div>
+          </div>
+          <div class="nav-item" data-view="finance" onclick="switchView('finance')">
+            <div class="nav-item-left">
+              <i class="ph ph-chart-line-up"></i>
+              <span>Financial Ledger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-card" onclick="openConfigModal()">
+          <div class="user-avatar">S</div>
+          <div class="user-info">
+            <div class="user-name">Shayan (Staff)</div>
+            <div class="user-role">Superadmin</div>
+          </div>
+          <i class="ph ph-gear" style="color:var(--muted); font-size:1.1rem;"></i>
+        </div>
+      </div>
+    </aside>
+
+    <main class="viewport">
+      <header class="topbar">
+        <div class="page-title-group">
+          <h1 class="page-title" id="page-heading">Operations Overview</h1>
+          <div class="badge badge-open" id="view-indicator">Real-time</div>
+        </div>
+        <div class="topbar-actions">
+          <div class="search-box">
+            <i class="ph ph-magnifying-glass"></i>
+            <input type="text" id="global-search" placeholder="Search grounds, refs, phones..." oninput="handleSearch(this.value)" />
+          </div>
+          <button class="btn btn-secondary btn-icon-only" title="Refresh Live Data" onclick="refreshAllData()">
+            <i class="ph ph-arrows-clockwise"></i>
+          </button>
+          <button class="btn btn-primary" onclick="openNewActionModal()">
+            <i class="ph ph-plus-bold"></i>
+            <span id="primary-action-text">Add Ground</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="content-area" id="main-content"></div>
+    </main>
+  </div>
+
+  <!-- MODAL: ADD GROUND -->
+  <div class="modal-backdrop" id="modal-add-ground">
+    <div class="modal-dialog" style="max-width:680px;">
+      <div class="modal-header">
+        <h3 class="modal-title">List New Cricket Ground</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-add-ground')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-create-ground" onsubmit="handleCreateGround(event)">
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Ground Name *</label>
+              <input class="form-control" name="name" placeholder="e.g. National Stadium Turf" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Area (Karachi) *</label>
+              <select class="form-control" name="area_id" id="ground-area-select" required></select>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Price per Hour (PKR) *</label>
+              <input class="form-control" type="number" name="price_per_hour" placeholder="e.g. 2500" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Weekend Price / Hr (PKR)</label>
+              <input class="form-control" type="number" name="weekend_price_per_hour" placeholder="e.g. 3000" />
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Ground Type *</label>
+              <select class="form-control" name="ground_type">
+                <option value="indoor">Indoor (Covered / Turf)</option>
+                <option value="outdoor" selected>Outdoor (Open Turf / Grass)</option>
+                <option value="both">Both (Complex)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pitch Surface</label>
+              <input class="form-control" name="surface" placeholder="Astro turf, Matting, Tape ball turf" />
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">WhatsApp Contact Number *</label>
+              <input class="form-control" name="whatsapp_number" placeholder="923001234567" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Manager / Contact Name</label>
+              <input class="form-control" name="contact_name" placeholder="e.g. Tariq Khan" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Full Address / Location Details</label>
+            <input class="form-control" name="address" placeholder="Block, Street, Landmark" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Amenities (Comma separated)</label>
+            <input class="form-control" name="amenities_input" placeholder="Floodlit, Nets, Parking, AC Lounge, Dressing Room" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description / Notes</label>
+            <textarea class="form-control" name="description" placeholder="Notes on ground conditions, floodlights, etc."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-ground')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Publish Ground</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD MANUAL BOOKING -->
+  <div class="modal-backdrop" id="modal-add-booking">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Manual Booking</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-add-booking')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-create-booking" onsubmit="handleCreateBooking(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Select Ground *</label>
+            <select class="form-control" name="ground_id" id="booking-ground-select" required></select>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Date *</label>
+              <input class="form-control" type="date" name="booking_date" id="booking-date-input" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Start Time *</label>
+              <input class="form-control" type="time" name="start_time" value="20:00" required />
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Duration (Minutes)</label>
+              <select class="form-control" name="duration_minutes">
+                <option value="60" selected>60 Mins (1 Hour)</option>
+                <option value="90">90 Mins (1.5 Hours)</option>
+                <option value="120">120 Mins (2 Hours)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Customer Name</label>
+              <input class="form-control" name="contact_name" placeholder="Player or Captain name" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Source & Payment Status</label>
+            <div class="form-grid-2">
+              <select class="form-control" name="source">
+                <option value="whatsapp">WhatsApp Booking</option>
+                <option value="admin" selected>Admin Manual Entry</option>
+                <option value="owner">Ground Owner Entry</option>
+              </select>
+              <select class="form-control" name="payment_status">
+                <option value="unpaid">Unpaid / Cash at Ground</option>
+                <option value="paid">Paid in Advance</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-booking')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm & Block Slot</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD LEAD -->
+  <div class="modal-backdrop" id="modal-add-lead">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Log WhatsApp Ground Lead</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-add-lead')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-create-lead" onsubmit="handleCreateLead(event)">
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">WhatsApp Number *</label>
+              <input class="form-control" name="whatsapp_number" placeholder="923001234567" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contact / Owner Name</label>
+              <input class="form-control" name="contact_name" placeholder="Owner Name" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ground Name (if provided)</label>
+            <input class="form-control" name="ground_name" placeholder="e.g. Asghar Ali Shah Turf" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Area / Location</label>
+            <input class="form-control" name="area" placeholder="e.g. North Nazimabad" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Conversation Notes</label>
+            <textarea class="form-control" name="notes" placeholder="Interested in listing, charges PKR 2000/hr"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-lead')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Lead</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SETTINGS & CONFIG -->
+  <div class="modal-backdrop" id="modal-config">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Backend Connection Settings</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-config')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Supabase Project URL</label>
+          <input class="form-control mono" id="cfg-url" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Supabase Anon Key</label>
+          <input class="form-control mono" id="cfg-anon" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-config')">Close</button>
+        <button class="btn btn-emerald" onclick="saveConfig()">Save & Reconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const DEFAULT_CONFIG = {
+      supabaseUrl: 'https://mfybkflgkjpuqhlthagt.supabase.co',
+      supabaseAnon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1meWJrZmxna2pwdXFobHRoYWd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNzEzNzgsImV4cCI6MjEwMzc0NzM3OH0.z5r3FXEsGS7OPLR1Rugn7XDlYHxKMhdvDWsUcfnL20I',
+      workerUrl: 'http://localhost:8787'
+    };
+
+    let state = {
+      config: JSON.parse(localStorage.getItem('gnm_admin_cfg')) || DEFAULT_CONFIG,
+      currentView: 'overview',
+      grounds: [],
+      areas: [],
+      bookings: [],
+      leads: [],
+      subscriptions: [],
+      selectedGround: null,
+      selectedBooking: null,
+      searchQuery: '',
+      filterArea: 'all',
+      filterStatus: 'all'
+    };
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('booking-date-input').valueAsDate = new Date();
+      await refreshAllData();
+      switchView('overview');
+    });
+
+    async function sbFetch(endpoint, options = {}) {
+      const url = `${state.config.supabaseUrl}/rest/v1/${endpoint}`;
+      const headers = {
+        'apikey': state.config.supabaseAnon,
+        'Authorization': `Bearer ${state.config.supabaseAnon}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      try {
+        const res = await fetch(url, { ...options, headers });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: res.statusText }));
+          throw new Error(err.message || 'API request failed');
+        }
+        return await res.json();
+      } catch (err) {
+        console.error(`sbFetch error (${endpoint}):`, err);
+        throw err;
+      }
+    }
+
+    async function refreshAllData() {
+      try {
+        const [areas, grounds, bookings, leads, subs] = await Promise.allSettled([
+          sbFetch('areas?select=*&order=sort_order.asc'),
+          sbFetch('grounds?select=*,area:areas(name,slug)&order=created_at.desc'),
+          sbFetch('bookings?select=*,ground:grounds(name,slug)&order=booking_date.desc,start_time.asc&limit=50'),
+          sbFetch('ground_leads?select=*&order=created_at.desc'),
+          sbFetch('owner_subscriptions?select=*,ground:grounds(name)&order=cycle_start.desc')
+        ]);
+
+        if (areas.status === 'fulfilled') state.areas = areas.value || [];
+        if (grounds.status === 'fulfilled') {
+          state.grounds = grounds.value || [];
+          if (!state.selectedGround && state.grounds.length > 0) state.selectedGround = state.grounds[0];
+        }
+        if (bookings.status === 'fulfilled') {
+          state.bookings = bookings.value || [];
+          if (!state.selectedBooking && state.bookings.length > 0) state.selectedBooking = state.bookings[0];
+        }
+        if (leads.status === 'fulfilled') state.leads = leads.value || [];
+        if (subs.status === 'fulfilled') state.subscriptions = subs.value || [];
+
+        updateNavCounts();
+        populateSelects();
+        renderCurrentView();
+        showToast('Live data refreshed', 'success');
+      } catch (e) {
+        showToast('Connection error refreshing data', 'error');
+      }
+    }
+
+    function updateNavCounts() {
+      document.getElementById('nav-grounds-count').textContent = state.grounds.length;
+      document.getElementById('nav-bookings-count').textContent = state.bookings.length;
+      document.getElementById('nav-leads-count').textContent = state.leads.length;
+    }
+
+    function populateSelects() {
+      const areaSelect = document.getElementById('ground-area-select');
+      areaSelect.innerHTML = state.areas.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+
+      const groundSelect = document.getElementById('booking-ground-select');
+      groundSelect.innerHTML = state.grounds.map(g => `<option value="${g.id}">${g.name} (${g.price_per_hour} PKR/hr)</option>`).join('');
+    }
+
+    function switchView(view) {
+      state.currentView = view;
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.view === view);
+      });
+
+      const titleMap = {
+        overview: 'Operations Overview',
+        grounds: 'Grounds Management',
+        bookings: 'Bookings & Schedule',
+        leads: 'WhatsApp Leads CRM',
+        subscriptions: 'Owner Subscriptions',
+        finance: 'Financial Overview & Ledger'
+      };
+      document.getElementById('page-heading').textContent = titleMap[view] || 'Console';
+      
+      const actionMap = {
+        overview: 'Add Ground',
+        grounds: 'Add Ground',
+        bookings: 'Create Booking',
+        leads: 'Log Lead',
+        subscriptions: 'Open Cycle',
+        finance: 'Export Report'
+      };
+      document.getElementById('primary-action-text').textContent = actionMap[view] || 'Action';
+
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      const container = document.getElementById('main-content');
+      switch (state.currentView) {
+        case 'overview': renderOverviewView(container); break;
+        case 'grounds': renderGroundsView(container); break;
+        case 'bookings': renderBookingsView(container); break;
+        case 'leads': renderLeadsView(container); break;
+        case 'subscriptions': renderSubscriptionsView(container); break;
+        case 'finance': renderFinanceView(container); break;
+      }
+    }
+
+    function renderOverviewView(container) {
+      const totalRevenue = state.bookings
+        .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        .reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
+
+      const activeGrounds = state.grounds.filter(g => g.status === 'active').length;
+      const pendingLeads = state.leads.filter(l => l.status === 'new' || l.status === 'contacted').length;
+
+      container.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Active Grounds</span>
+              <div class="stat-icon-wrap"><i class="ph ph-map-pin"></i></div>
+            </div>
+            <div class="stat-value display-num">${activeGrounds}</div>
+            <div class="stat-sub positive"><i class="ph ph-check-circle"></i> ${state.grounds.length} total listed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Live Bookings</span>
+              <div class="stat-icon-wrap"><i class="ph ph-calendar-check"></i></div>
+            </div>
+            <div class="stat-value display-num">${state.bookings.length}</div>
+            <div class="stat-sub"><i class="ph ph-clock"></i> Active bookings</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Booking Value</span>
+              <div class="stat-icon-wrap"><i class="ph ph-currency-dollar"></i></div>
+            </div>
+            <div class="stat-value display-num">PKR ${totalRevenue.toLocaleString()}</div>
+            <div class="stat-sub positive"><i class="ph ph-trend-up"></i> Gross GMV</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">WhatsApp Leads</span>
+              <div class="stat-icon-wrap"><i class="ph ph-whatsapp-logo"></i></div>
+            </div>
+            <div class="stat-value display-num">${pendingLeads}</div>
+            <div class="stat-sub"><i class="ph ph-arrow-right"></i> Pipeline active</div>
+          </div>
+        </div>
+
+        <div class="dashboard-split">
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div class="panel-card">
+              <div class="panel-header">
+                <span class="panel-title"><i class="ph ph-calendar-blank"></i> Recent Bookings</span>
+                <button class="btn btn-secondary btn-sm" onclick="switchView('bookings')">View All</button>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Ref</th>
+                      <th>Ground</th>
+                      <th>Date / Time</th>
+                      <th>Status</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${state.bookings.slice(0, 6).map(b => `
+                      <tr class="clickable ${state.selectedBooking?.id === b.id ? 'selected' : ''}" onclick="selectBooking('${b.id}')">
+                        <td class="mono font-semibold">${b.booking_ref}</td>
+                        <td>${b.ground?.name || 'Ground'}</td>
+                        <td>${b.booking_date} · ${b.start_time.slice(0,5)}</td>
+                        <td><span class="badge badge-${b.status}">${b.status}</span></td>
+                        <td class="display-num">PKR ${Number(b.total_amount).toLocaleString()}</td>
+                      </tr>
+                    `).join('') || '<tr><td colspan="5" style="text-align:center; padding:30px;">No bookings yet</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel-card">
+              <div class="panel-header">
+                <span class="panel-title"><i class="ph ph-buildings"></i> Ground Directory Overview</span>
+                <button class="btn btn-secondary btn-sm" onclick="switchView('grounds')">Manage Grounds</button>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Ground</th>
+                      <th>Area</th>
+                      <th>Type</th>
+                      <th>Rate / Hr</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${state.grounds.slice(0, 5).map(g => `
+                      <tr class="clickable ${state.selectedGround?.id === g.id ? 'selected' : ''}" onclick="selectGround('${g.id}')">
+                        <td style="font-weight:700;">${g.name}</td>
+                        <td>${g.area?.name || g.city}</td>
+                        <td><span class="badge" style="background:#eef2f6; color:#334155;">${g.ground_type}</span></td>
+                        <td class="display-num">PKR ${g.price_per_hour.toLocaleString()}</td>
+                        <td><span class="badge badge-${g.status}">${g.status}</span></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="inspector-panel" id="overview-inspector">
+            ${renderInspectorContent()}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderInspectorContent() {
+      if (state.selectedBooking) {
+        const b = state.selectedBooking;
+        return `
+          <div class="inspector-top">
+            <span class="inspector-crumb"><i class="ph ph-ticket"></i> Booking Detail</span>
+            <span class="badge badge-${b.status}">${b.status}</span>
+          </div>
+          <div class="inspector-big-val display-num">PKR ${Number(b.total_amount).toLocaleString()}</div>
+          
+          <div class="inspector-card-preview">
+            <div class="preview-thumb"><i class="ph ph-baseball"></i></div>
+            <div style="min-width:0;">
+              <div style="font-weight:800; font-size:0.9rem;">${b.ground?.name || 'Cricket Ground'}</div>
+              <div style="font-size:0.75rem; color:var(--muted);">${b.booking_date} · ${b.start_time.slice(0,5)} to ${b.end_time.slice(0,5)}</div>
+            </div>
+          </div>
+
+          <div class="inspector-section-label">Order Details</div>
+          <div class="inspector-detail-row">
+            <span class="inspector-detail-label">Booking Reference</span>
+            <span class="inspector-detail-val mono">${b.booking_ref}</span>
+          </div>
+          <div class="inspector-detail-row">
+            <span class="inspector-detail-label">Customer Contact</span>
+            <span class="inspector-detail-val">${b.contact_name || 'Walk-in Player'}</span>
+          </div>
+          <div class="inspector-detail-row">
+            <span class="inspector-detail-label">Duration</span>
+            <span class="inspector-detail-val">${b.duration_minutes} Mins</span>
+          </div>
+          <div class="inspector-detail-row">
+            <span class="inspector-detail-label">Source</span>
+            <span class="inspector-detail-val uppercase" style="font-size:0.75rem;">${b.source}</span>
+          </div>
+          <div class="inspector-detail-row">
+            <span class="inspector-detail-label">Payment</span>
+            <span class="inspector-detail-val"><span class="badge badge-${b.payment_status}">${b.payment_status}</span></span>
+          </div>
+
+          <div style="margin-top:20px; display:flex; flex-direction:column; gap:8px;">
+            ${b.status === 'pending' ? `
+              <button class="btn btn-primary" onclick="setBookingStatus('${b.id}', 'confirmed')">Confirm Booking</button>
+              <button class="btn btn-secondary" onclick="setBookingStatus('${b.id}', 'cancelled')">Cancel Booking</button>
+            ` : b.status === 'confirmed' ? `
+              <button class="btn btn-emerald" onclick="setBookingStatus('${b.id}', 'completed')">Mark Completed</button>
+              <button class="btn btn-secondary" onclick="setBookingStatus('${b.id}', 'cancelled')">Cancel Booking</button>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="empty-state">
+          <i class="ph ph-cursor-click"></i>
+          <p>Select any booking or ground to view instant inspection details.</p>
+        </div>
+      `;
+    }
+
+    function renderGroundsView(container) {
+      let filtered = state.grounds.filter(g => {
+        if (state.searchQuery && !g.name.toLowerCase().includes(state.searchQuery.toLowerCase())) return false;
+        if (state.filterStatus !== 'all' && g.status !== state.filterStatus) return false;
+        return true;
+      });
+
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div class="tab-pills">
+            <div class="tab-pill ${state.filterStatus === 'all' ? 'active' : ''}" onclick="setGroundFilter('all')">All (${state.grounds.length})</div>
+            <div class="tab-pill ${state.filterStatus === 'active' ? 'active' : ''}" onclick="setGroundFilter('active')">Active</div>
+            <div class="tab-pill ${state.filterStatus === 'pending' ? 'active' : ''}" onclick="setGroundFilter('pending')">Pending</div>
+            <div class="tab-pill ${state.filterStatus === 'draft' ? 'active' : ''}" onclick="setGroundFilter('draft')">Drafts</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-add-ground')">
+            <i class="ph ph-plus-bold"></i> Add New Ground
+          </button>
+        </div>
+
+        <div class="panel-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ground Name</th>
+                  <th>Area</th>
+                  <th>Pitch Surface</th>
+                  <th>Price / Hour</th>
+                  <th>Weekend Rate</th>
+                  <th>WhatsApp Contact</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.map(g => `
+                  <tr>
+                    <td>
+                      <div style="font-weight:800; font-size:0.9rem; color:var(--ink);">${g.name}</div>
+                      <div style="font-size:0.75rem; color:var(--muted);">${g.address || 'Karachi'}</div>
+                    </td>
+                    <td><span class="badge" style="background:#edf7f0; color:var(--emerald);">${g.area?.name || g.city}</span></td>
+                    <td>${g.surface || 'Standard'}</td>
+                    <td class="display-num" style="font-size:1.05rem;">PKR ${g.price_per_hour.toLocaleString()}</td>
+                    <td class="display-num" style="color:var(--muted);">${g.weekend_price_per_hour ? 'PKR ' + g.weekend_price_per_hour.toLocaleString() : '—'}</td>
+                    <td class="mono font-semibold">${g.whatsapp_number || '—'}</td>
+                    <td>
+                      <select class="form-control" style="padding:4px 8px; font-size:0.75rem; width:100px;" onchange="updateGroundStatus('${g.id}', this.value)">
+                        <option value="active" ${g.status === 'active' ? 'selected' : ''}>Active</option>
+                        <option value="pending" ${g.status === 'pending' ? 'selected' : ''}>Pending</option>
+                        <option value="draft" ${g.status === 'draft' ? 'selected' : ''}>Draft</option>
+                        <option value="paused" ${g.status === 'paused' ? 'selected' : ''}>Paused</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button class="btn btn-secondary btn-sm" onclick="showToast('Selected ground: ' + '${g.name}', 'success')">
+                        <i class="ph ph-eye"></i> View
+                      </button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="8" style="text-align:center; padding:40px;">No grounds found matching query.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderBookingsView(container) {
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div style="font-weight:700; color:var(--muted);">Total Bookings: ${state.bookings.length}</div>
+          <button class="btn btn-primary" onclick="openModal('modal-add-booking')">
+            <i class="ph ph-plus-bold"></i> New Booking Entry
+          </button>
+        </div>
+
+        <div class="panel-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Ground</th>
+                  <th>Booking Date</th>
+                  <th>Slot Time</th>
+                  <th>Duration</th>
+                  <th>Customer</th>
+                  <th>Total Amount</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.bookings.map(b => `
+                  <tr>
+                    <td class="mono font-semibold" style="color:var(--emerald);">${b.booking_ref}</td>
+                    <td style="font-weight:700;">${b.ground?.name || 'Ground'}</td>
+                    <td>${b.booking_date}</td>
+                    <td class="mono">${b.start_time.slice(0,5)} - ${b.end_time.slice(0,5)}</td>
+                    <td>${b.duration_minutes}m</td>
+                    <td>${b.contact_name || 'Walk-in'}</td>
+                    <td class="display-num" style="font-size:1rem;">PKR ${Number(b.total_amount).toLocaleString()}</td>
+                    <td><span class="badge badge-${b.payment_status}">${b.payment_status}</span></td>
+                    <td>
+                      <select class="form-control" style="padding:4px 8px; font-size:0.75rem; width:115px;" onchange="setBookingStatus('${b.id}', this.value)">
+                        <option value="pending" ${b.status === 'pending' ? 'selected' : ''}>Pending</option>
+                        <option value="confirmed" ${b.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+                        <option value="completed" ${b.status === 'completed' ? 'selected' : ''}>Completed</option>
+                        <option value="cancelled" ${b.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                      </select>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="9" style="text-align:center; padding:40px;">No bookings recorded.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLeadsView(container) {
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div style="font-weight:700; color:var(--muted);">WhatsApp Inbound Pipeline (${state.leads.length} leads)</div>
+          <button class="btn btn-primary" onclick="openModal('modal-add-lead')">
+            <i class="ph ph-plus-bold"></i> Log Inbound WhatsApp Lead
+          </button>
+        </div>
+
+        <div class="panel-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>WhatsApp Number</th>
+                  <th>Contact Name</th>
+                  <th>Ground Name</th>
+                  <th>Area</th>
+                  <th>Notes</th>
+                  <th>Stage Status</th>
+                  <th>Quick Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.leads.map(l => `
+                  <tr>
+                    <td class="mono font-semibold" style="color:var(--emerald);">
+                      <a href="https://wa.me/${l.whatsapp_number}" target="_blank" style="display:flex; align-items:center; gap:6px; color:var(--emerald);">
+                        <i class="ph ph-whatsapp-logo" style="font-size:1.1rem; color:var(--lime-dark);"></i>
+                        ${l.whatsapp_number}
+                      </a>
+                    </td>
+                    <td>${l.contact_name || '—'}</td>
+                    <td style="font-weight:700;">${l.ground_name || '—'}</td>
+                    <td>${l.area || 'Karachi'}</td>
+                    <td style="max-width:240px; font-size:0.78rem; color:var(--muted);">${l.notes || 'No notes'}</td>
+                    <td>
+                      <select class="form-control" style="padding:4px 8px; font-size:0.75rem; width:120px;" onchange="updateLeadStatus('${l.id}', this.value)">
+                        <option value="new" ${l.status === 'new' ? 'selected' : ''}>New</option>
+                        <option value="contacted" ${l.status === 'contacted' ? 'selected' : ''}>Contacted</option>
+                        <option value="onboarding" ${l.status === 'onboarding' ? 'selected' : ''}>Onboarding</option>
+                        <option value="listed" ${l.status === 'listed' ? 'selected' : ''}>Listed</option>
+                        <option value="rejected" ${l.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button class="btn btn-secondary btn-sm" onclick="convertLeadToGround('${l.id}')">
+                        <i class="ph ph-arrow-right"></i> Convert to Ground
+                      </button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="7" style="text-align:center; padding:40px;">No inbound leads recorded.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSubscriptionsView(container) {
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div style="font-weight:700; color:var(--muted);">Pro Tier Monthly Subscription Cycles</div>
+          <button class="btn btn-primary" onclick="showToast('Opened new monthly billing cycle for Pro grounds', 'success')">
+            <i class="ph ph-calendar-plus"></i> Open Monthly Cycle
+          </button>
+        </div>
+
+        <div class="panel-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ground</th>
+                  <th>Billing Cycle</th>
+                  <th>Fee Amount</th>
+                  <th>Payment Method</th>
+                  <th>Invoice Ref</th>
+                  <th>Status</th>
+                  <th>Payment Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.subscriptions.map(s => `
+                  <tr>
+                    <td style="font-weight:700;">${s.ground?.name || 'Pro Ground'}</td>
+                    <td>${s.cycle_start} to ${s.cycle_end}</td>
+                    <td class="display-num">PKR ${Number(s.amount).toLocaleString()}</td>
+                    <td>${s.payment_method || 'JazzCash / EasyPaisa'}</td>
+                    <td class="mono">${s.invoice_ref || 'GNM-INV-001'}</td>
+                    <td><span class="badge badge-${s.status}">${s.status}</span></td>
+                    <td>
+                      <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('https://pay.groundsnearme.pk/' + '${s.invoice_ref}'); showToast('Payment link copied', 'success');">
+                        <i class="ph ph-copy"></i> Copy Link
+                      </button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="7" style="text-align:center; padding:40px;">No active subscription billing cycles yet.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderFinanceView(container) {
+      const gross = state.bookings
+        .filter(b => b.status === 'completed' || b.status === 'confirmed')
+        .reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
+      
+      const commission = gross * 0.10;
+
+      container.innerHTML = `
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Platform Gross GMV</span>
+              <div class="stat-icon-wrap"><i class="ph ph-money"></i></div>
+            </div>
+            <div class="stat-value display-num">PKR ${gross.toLocaleString()}</div>
+            <div class="stat-sub positive"><i class="ph ph-arrow-up-right"></i> Total player booking volume</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Estimated Commission (10%)</span>
+              <div class="stat-icon-wrap"><i class="ph ph-chart-pie-slice"></i></div>
+            </div>
+            <div class="stat-value display-num" style="color:var(--emerald);">PKR ${commission.toLocaleString()}</div>
+            <div class="stat-sub"><i class="ph ph-lock"></i> Superadmin Restricted</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Grounds Payout Due</span>
+              <div class="stat-icon-wrap"><i class="ph ph-bank"></i></div>
+            </div>
+            <div class="stat-value display-num">PKR ${(gross - commission).toLocaleString()}</div>
+            <div class="stat-sub"><i class="ph ph-check"></i> Direct to turf owners</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span class="panel-title"><i class="ph ph-coins"></i> Revenue Breakdown by Ground</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ground Name</th>
+                  <th>Hourly Rate</th>
+                  <th>Total Bookings</th>
+                  <th>Gross GMV</th>
+                  <th>Platform Take</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.grounds.map(g => {
+                  const gBookings = state.bookings.filter(b => b.ground_id === g.id);
+                  const gGross = gBookings.reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
+                  return `
+                    <tr>
+                      <td style="font-weight:800;">${g.name}</td>
+                      <td class="display-num">PKR ${g.price_per_hour.toLocaleString()}</td>
+                      <td>${gBookings.length} bookings</td>
+                      <td class="display-num" style="color:var(--ink);">PKR ${gGross.toLocaleString()}</td>
+                      <td class="display-num" style="color:var(--emerald);">PKR ${(gGross * 0.1).toLocaleString()}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    async function handleCreateGround(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const name = formData.get('name');
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const amenities = (formData.get('amenities_input') || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const payload = {
+        name,
+        slug,
+        area_id: formData.get('area_id'),
+        price_per_hour: parseInt(formData.get('price_per_hour'), 10),
+        weekend_price_per_hour: formData.get('weekend_price_per_hour') ? parseInt(formData.get('weekend_price_per_hour'), 10) : null,
+        ground_type: formData.get('ground_type'),
+        surface: formData.get('surface'),
+        whatsapp_number: formData.get('whatsapp_number').replace(/\D/g, ''),
+        contact_name: formData.get('contact_name'),
+        address: formData.get('address'),
+        amenities,
+        description: formData.get('description'),
+        status: 'active',
+        listing_tier: 'free'
+      };
+
+      try {
+        await sbFetch('grounds', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Prefer': 'return=representation' }
+        });
+        showToast(`Ground "${name}" published successfully!`, 'success');
+        closeModal('modal-add-ground');
+        form.reset();
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function handleCreateBooking(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const groundId = formData.get('ground_id');
+      const ground = state.grounds.find(g => g.id === groundId);
+      const rate = ground ? ground.price_per_hour : 2500;
+      const duration = parseInt(formData.get('duration_minutes'), 10);
+      const totalAmount = (rate * duration) / 60;
+
+      const startTime = formData.get('start_time');
+      const [h, m] = startTime.split(':').map(Number);
+      const endHour = (h + Math.floor((m + duration) / 60)) % 24;
+      const endMin = (m + duration) % 60;
+      const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
+
+      const randSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const ref = `GNM-2026-${randSuffix}`;
+
+      const payload = {
+        booking_ref: ref,
+        ground_id: groundId,
+        booking_date: formData.get('booking_date'),
+        start_time: startTime + ':00',
+        end_time: endTime,
+        duration_minutes: duration,
+        contact_name: formData.get('contact_name'),
+        source: formData.get('source'),
+        payment_status: formData.get('payment_status'),
+        status: 'confirmed',
+        price_per_hour: rate,
+        total_amount: totalAmount,
+        currency: 'PKR',
+        confirmed_at: new Date().toISOString()
+      };
+
+      try {
+        await sbFetch('bookings', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Prefer': 'return=representation' }
+        });
+        showToast(`Booking ${ref} confirmed!`, 'success');
+        closeModal('modal-add-booking');
+        form.reset();
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function handleCreateLead(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const payload = {
+        whatsapp_number: formData.get('whatsapp_number').replace(/\D/g, ''),
+        contact_name: formData.get('contact_name'),
+        ground_name: formData.get('ground_name'),
+        area: formData.get('area'),
+        notes: formData.get('notes'),
+        status: 'new'
+      };
+
+      try {
+        await sbFetch('ground_leads', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Prefer': 'return=representation' }
+        });
+        showToast('WhatsApp lead logged!', 'success');
+        closeModal('modal-add-lead');
+        form.reset();
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function updateGroundStatus(id, newStatus) {
+      try {
+        await sbFetch(`grounds?id=eq.${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus }),
+          headers: { 'Prefer': 'return=minimal' }
+        });
+        showToast(`Ground status updated to ${newStatus}`, 'success');
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function setBookingStatus(id, newStatus) {
+      try {
+        await sbFetch(`bookings?id=eq.${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus }),
+          headers: { 'Prefer': 'return=minimal' }
+        });
+        showToast(`Booking status changed to ${newStatus}`, 'success');
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function updateLeadStatus(id, newStatus) {
+      try {
+        await sbFetch(`ground_leads?id=eq.${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus }),
+          headers: { 'Prefer': 'return=minimal' }
+        });
+        showToast(`Lead stage updated to ${newStatus}`, 'success');
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function convertLeadToGround(leadId) {
+      const lead = state.leads.find(l => l.id === leadId);
+      if (!lead) return;
+      openModal('modal-add-ground');
+      const form = document.getElementById('form-create-ground');
+      if (lead.ground_name) form.elements['name'].value = lead.ground_name;
+      if (lead.contact_name) form.elements['contact_name'].value = lead.contact_name;
+      if (lead.whatsapp_number) form.elements['whatsapp_number'].value = lead.whatsapp_number;
+      if (lead.area) form.elements['address'].value = lead.area;
+      if (lead.notes) form.elements['description'].value = `Lead conversion: ${lead.notes}`;
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    function openNewActionModal() {
+      if (state.currentView === 'bookings') openModal('modal-add-booking');
+      else if (state.currentView === 'leads') openModal('modal-add-lead');
+      else openModal('modal-add-ground');
+    }
+    function openConfigModal() {
+      document.getElementById('cfg-url').value = state.config.supabaseUrl;
+      document.getElementById('cfg-anon').value = state.config.supabaseAnon;
+      openModal('modal-config');
+    }
+    function saveConfig() {
+      state.config.supabaseUrl = document.getElementById('cfg-url').value.trim();
+      state.config.supabaseAnon = document.getElementById('cfg-anon').value.trim();
+      localStorage.setItem('gnm_admin_cfg', JSON.stringify(state.config));
+      closeModal('modal-config');
+      showToast('Settings saved, reconnecting...', 'success');
+      refreshAllData();
+    }
+
+    function selectBooking(id) {
+      state.selectedBooking = state.bookings.find(b => b.id === id);
+      const inspector = document.getElementById('overview-inspector');
+      if (inspector) inspector.innerHTML = renderInspectorContent();
+    }
+    function selectGround(id) {
+      state.selectedGround = state.grounds.find(g => g.id === id);
+    }
+    function handleSearch(q) {
+      state.searchQuery = q.trim();
+      renderCurrentView();
+    }
+    function setGroundFilter(status) {
+      state.filterStatus = status;
+      renderCurrentView();
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<i class="ph ph-${type === 'success' ? 'check-circle' : 'warning-circle'}"></i> <span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.2s';
+        setTimeout(() => toast.remove(), 200);
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
