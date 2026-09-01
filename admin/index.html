@@ -1091,6 +1091,8 @@
     const DEFAULT_CONFIG = {
       supabaseUrl: 'https://mfybkflgkjpuqhlthagt.supabase.co',
       supabaseAnon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1meWJrZmxna2pwdXFobHRoYWd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNzEzNzgsImV4cCI6MjEwMzc0NzM3OH0.z5r3FXEsGS7OPLR1Rugn7XDlYHxKMhdvDWsUcfnL20I',
+      // service_role key bypasses RLS — admin writes use this
+      supabaseServiceRole: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1meWJrZmxna2pwdXFobHRoYWd0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODE3MTM3OCwiZXhwIjoyMTAzNzQ3Mzc4fQ.Q4mbuuOITqmBacJOsiN2V_ws6tj7xT_5Dv86Rh-L9iE',
       workerUrl: 'http://localhost:8787'
     };
 
@@ -1117,9 +1119,15 @@
 
     async function sbFetch(endpoint, options = {}) {
       const url = `${state.config.supabaseUrl}/rest/v1/${endpoint}`;
+      // Use service_role key for all write ops so RLS is bypassed in admin
+      const method = (options.method || 'GET').toUpperCase();
+      const isWrite = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
+      const authKey = isWrite && state.config.supabaseServiceRole
+        ? state.config.supabaseServiceRole
+        : state.config.supabaseAnon;
       const headers = {
-        'apikey': state.config.supabaseAnon,
-        'Authorization': `Bearer ${state.config.supabaseAnon}`,
+        'apikey': authKey,
+        'Authorization': `Bearer ${authKey}`,
         'Content-Type': 'application/json',
         ...options.headers
       };
