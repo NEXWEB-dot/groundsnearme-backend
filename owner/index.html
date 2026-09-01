@@ -868,10 +868,15 @@
       };
       const res = await fetch(url, { ...options, headers });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: res.statusText }));
-        throw new Error(err.message || 'API request failed');
+        const text = await res.text();
+        let msg = res.statusText;
+        try { msg = JSON.parse(text).message || msg; } catch (_) {}
+        throw new Error(msg);
       }
-      return await res.json();
+      // 204 No Content — return null instead of crashing on empty body
+      const text = await res.text();
+      if (!text) return null;
+      return JSON.parse(text);
     }
 
     async function loadGrounds() {
