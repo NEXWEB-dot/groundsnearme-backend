@@ -1,0 +1,17 @@
+# Local development secrets for `wrangler dev`.
+# Copy to `.dev.vars` (git-ignored) and fill in. Never commit the real file.
+#
+# Production equivalents are set with:
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put SUPABASE_JWT_SECRET
+
+# Service-role key. Used ONLY for the scheduled housekeeping job and for
+# reading a caller's role when the JWT carries no role claim. Never sent to a
+# browser, never used to satisfy a normal read.
+SUPABASE_SERVICE_ROLE_KEY="paste-service-role-key"
+
+# Legacy HS256 JWT secret (Supabase → Project Settings → API → JWT Secret).
+# Only needed if the project still signs tokens with HS256. Projects using
+# asymmetric signing keys are verified via the JWKS endpoint instead and can
+# leave this blank.
+SUPABASE_JWT_SECRET=""

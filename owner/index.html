@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GroundsNearMe — Ground Owner Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/bold/style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.0.3/src/index.js"></script>
+  <style>
+    :root {
+      --white: #ffffff;
+      --off: #f4f6f5;
+      --canvas: #eef2ef;
+      --emerald: #0d4a2c;
+      --emerald-mid: #1a6b40;
+      --emerald-light: #e8f4ed;
+      --lime: #4ade80;
+      --lime-dark: #22c55e;
+      --ink: #0d1a0f;
+      --muted: #526659;
+      --muted-light: #8fa195;
+      --border: #dbe5de;
+      --border-subtle: #e8efe9;
+      --card-bg: #f0f7f3;
+      --danger: #ef4444;
+      --danger-bg: #fee2e2;
+      --warning: #f59e0b;
+      --warning-bg: #fef3c7;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 26px;
+      --shadow-sm: 0 1px 3px rgba(13,26,15,0.04);
+      --shadow-md: 0 6px 24px -4px rgba(13,26,15,0.06), 0 2px 6px -1px rgba(13,26,15,0.02);
+      --shadow-lg: 0 16px 40px -8px rgba(13,26,15,0.08);
+      --shadow-modal: 0 25px 60px -12px rgba(13,26,15,0.22);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--off);
+      color: var(--ink);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      display: flex;
+      height: 100vh;
+    }
+
+    button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .display-num { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+
+    #app {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      background: var(--off);
+      padding: 16px;
+      gap: 16px;
+    }
+
+    aside.sidebar {
+      width: 260px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: var(--shadow-md);
+      flex-shrink: 0;
+    }
+
+    .brand-header {
+      padding: 0 10px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--emerald);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .ground-selector {
+      margin-top: 14px;
+      background: var(--off);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ground-selector-label {
+      font-size: 0.6875rem;
+      font-weight: 800;
+      color: var(--muted-light);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .ground-select-input {
+      background: transparent;
+      border: none;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--ink);
+      outline: none;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .nav-group {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .nav-label {
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted-light);
+      padding: 8px 12px 4px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .nav-item:hover {
+      background: var(--card-bg);
+      color: var(--emerald);
+    }
+    .nav-item.active {
+      background: var(--emerald-light);
+      color: var(--emerald);
+      border-color: rgba(13, 74, 44, 0.12);
+      font-weight: 700;
+    }
+    .nav-item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-item i { font-size: 1.15rem; }
+    .nav-count {
+      background: var(--white);
+      color: var(--emerald);
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .nav-item.active .nav-count {
+      background: var(--emerald);
+      color: var(--white);
+      border-color: var(--emerald);
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 16px;
+    }
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+    }
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--emerald);
+      color: var(--lime);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+    }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name {
+      font-weight: 700;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--ink);
+    }
+    .user-role {
+      font-size: 0.7rem;
+      color: var(--lime-dark);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    main.viewport {
+      flex: 1;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    header.topbar {
+      height: 70px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+    .page-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+      user-select: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--lime);
+      color: var(--emerald);
+      border-color: rgba(13, 74, 44, 0.1);
+    }
+    .btn-primary:hover {
+      background: var(--lime-dark);
+      color: var(--white);
+    }
+    .btn-emerald {
+      background: var(--emerald);
+      color: var(--white);
+    }
+    .btn-emerald:hover { background: var(--emerald-mid); }
+    .btn-secondary {
+      background: var(--card-bg);
+      color: var(--emerald);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover {
+      background: #e2ede6;
+      border-color: #c5d8cc;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+    }
+    .btn-ghost:hover {
+      background: var(--off);
+      color: var(--ink);
+    }
+    .btn-sm { padding: 6px 12px; font-size: 0.75rem; border-radius: var(--radius-sm); }
+    .btn-icon-only { width: 38px; height: 38px; padding: 0; border-radius: var(--radius-md); }
+
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px 40px;
+      background: var(--white);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-open, .badge-active, .badge-confirmed, .badge-paid {
+      background: var(--lime);
+      color: var(--emerald);
+    }
+    .badge-pending, .badge-unpaid {
+      background: var(--warning-bg);
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .badge-full, .badge-closed, .badge-cancelled {
+      background: var(--border);
+      color: var(--muted);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--off);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover {
+      border-color: #bcd4c4;
+      transform: translateY(-2px);
+    }
+    .stat-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-icon-wrap {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--emerald);
+      font-size: 1.1rem;
+    }
+    .stat-value {
+      font-size: 1.85rem;
+      color: var(--ink);
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .stat-sub {
+      font-size: 0.725rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .stat-sub.positive { color: var(--lime-dark); font-weight: 700; }
+
+    .dashboard-split {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--white);
+    }
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* TIME SLOTS GRID */
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 20px;
+    }
+    .slot-cell {
+      background: var(--off);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .slot-cell:hover {
+      border-color: var(--emerald);
+      background: var(--card-bg);
+    }
+    .slot-cell.booked {
+      background: #fdf2f2;
+      border-color: #fecaca;
+    }
+    .slot-cell.available {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    .slot-time {
+      font-weight: 800;
+      font-size: 0.9rem;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .slot-player {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .table-responsive { width: 100%; overflow-x: auto; }
+    table.data-table { width: 100%; border-collapse: collapse; text-align: left; }
+    table.data-table th {
+      background: var(--off);
+      padding: 11px 16px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    table.data-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.8125rem;
+      vertical-align: middle;
+    }
+    table.data-table tr:hover td { background: #f8faf8; }
+
+    .inspector-panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      position: sticky;
+      top: 0;
+    }
+    .inspector-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .inspector-crumb {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .inspector-detail-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.8125rem;
+    }
+    .inspector-detail-row:last-child { border-bottom: none; }
+    .inspector-detail-label { color: var(--muted); }
+    .inspector-detail-val { font-weight: 600; color: var(--ink); }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 26, 15, 0.45);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal-dialog {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      width: 100%;
+      max-width: 600px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-modal);
+      transform: translateY(20px) scale(0.97);
+      transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .modal-backdrop.open .modal-dialog { transform: translateY(0) scale(1); }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      background: var(--off);
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    }
+
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .form-control {
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--off);
+      outline: none;
+      font-size: 0.8125rem;
+      transition: all 0.2s;
+    }
+    .form-control:focus {
+      background: var(--white);
+      border-color: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(13, 74, 44, 0.08);
+    }
+
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 3000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .toast {
+      background: var(--ink);
+      color: var(--white);
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastSlideIn 0.3s cubic-bezier(0.2,0,0,1);
+    }
+    .toast.success { background: var(--emerald); color: var(--white); border-left: 4px solid var(--lime); }
+    .toast.error { background: #991b1b; color: var(--white); border-left: 4px solid var(--danger); }
+    @keyframes toastSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div>
+        <div class="brand-header">
+          <div class="brand-logo">
+            <i class="ph ph-baseball" style="font-size:1.4rem; color:var(--lime-dark);"></i>
+            <span>Owner Portal</span>
+          </div>
+
+          <div class="ground-selector">
+            <span class="ground-selector-label">Active Ground</span>
+            <select class="ground-select-input" id="owner-ground-select" onchange="handleGroundChange(this.value)">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Operations</span>
+          <div class="nav-item active" data-view="schedule" onclick="switchView('schedule')">
+            <div class="nav-item-left">
+              <i class="ph ph-calendar-check"></i>
+              <span>Slot Schedule</span>
+            </div>
+          </div>
+          <div class="nav-item" data-view="bookings" onclick="switchView('bookings')">
+            <div class="nav-item-left">
+              <i class="ph ph-list-numbers"></i>
+              <span>All Bookings</span>
+            </div>
+            <span class="nav-count" id="nav-bookings-count">0</span>
+          </div>
+          <div class="nav-item" data-view="pricing" onclick="switchView('pricing')">
+            <div class="nav-item-left">
+              <i class="ph ph-currency-dollar"></i>
+              <span>Rates & Hours</span>
+            </div>
+          </div>
+          <div class="nav-item" data-view="closures" onclick="switchView('closures')">
+            <div class="nav-item-left">
+              <i class="ph ph-prohibit"></i>
+              <span>Maintenance & Off</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-card" onclick="openOwnerAuthModal()" style="cursor:pointer;" title="Owner Account & Settings">
+          <div class="user-avatar"><i class="ph ph-user"></i></div>
+          <div class="user-info">
+            <div class="user-name" id="owner-manager-name">Ground Owner</div>
+            <div class="user-role" id="owner-account-role">Turf Manager</div>
+          </div>
+          <i class="ph ph-gear" style="color:var(--muted); font-size:1rem;"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN VIEWPORT -->
+    <main class="viewport">
+      <header class="topbar">
+        <div class="page-title-group">
+          <h1 class="page-title" id="page-heading">Live Slot Schedule</h1>
+          <div class="badge badge-open" id="view-indicator">Active Turf</div>
+        </div>
+        <div class="topbar-actions">
+          <input type="date" class="form-control" id="schedule-date-filter" style="width:160px; padding:7px 12px;" onchange="handleDateChange(this.value)" />
+          <button class="btn btn-secondary btn-icon-only" title="Refresh" onclick="refreshData()">
+            <i class="ph ph-arrows-clockwise"></i>
+          </button>
+          <button class="btn btn-secondary" id="owner-auth-btn" onclick="openOwnerAuthModal()" style="font-size:0.8rem; font-weight:700;">
+            <i class="ph ph-user-circle"></i> <span id="owner-auth-btn-text">Sign In</span>
+          </button>
+          <button class="btn btn-primary" onclick="openModal('modal-manual-booking')">
+            <i class="ph ph-plus-bold"></i>
+            <span>Log Walk-in / Call</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="content-area" id="main-content"></div>
+    </main>
+  </div>
+
+  <!-- MODAL: MANUAL BOOKING ENTRY -->
+  <div class="modal-backdrop" id="modal-manual-booking">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Block Slot / Walk-in Booking</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-manual-booking')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-owner-booking" onsubmit="handleOwnerBooking(event)">
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Booking Date *</label>
+              <input class="form-control" type="date" name="booking_date" id="owner-booking-date" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Start Time *</label>
+              <input class="form-control" type="time" name="start_time" value="20:00" required />
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Duration</label>
+              <select class="form-control" name="duration_minutes">
+                <option value="60" selected>1 Hour (60m)</option>
+                <option value="90">1.5 Hours (90m)</option>
+                <option value="120">2 Hours (120m)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Captain / Caller Name *</label>
+              <input class="form-control" name="contact_name" placeholder="e.g. Captain Tariq" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Contact Phone / WhatsApp</label>
+            <input class="form-control" name="contact_phone" placeholder="0300-1234567" />
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Payment Status</label>
+              <select class="form-control" name="payment_status">
+                <option value="unpaid">Unpaid / Collect at Ground</option>
+                <option value="paid">Paid Advance</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <input class="form-control" name="notes" placeholder="Tape ball, balls provided" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-manual-booking')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm & Block Slot</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD CLOSURE / MAINTENANCE -->
+  <div class="modal-backdrop" id="modal-add-closure">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Block Ground for Maintenance</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-add-closure')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-add-closure" onsubmit="handleAddClosure(event)">
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Start Date *</label>
+              <input class="form-control" type="date" name="starts_on" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">End Date *</label>
+              <input class="form-control" type="date" name="ends_on" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reason / Type</label>
+            <input class="form-control" name="reason" placeholder="Pitch rolling, floodlight repair, rain closure" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-closure')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Block Dates</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: OWNER LOGIN -->
+  <div class="modal-backdrop" id="modal-owner-login">
+    <div class="modal-dialog" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="ph ph-lock-key"></i> Turf Owner Sign In</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-owner-login')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-owner-login" onsubmit="handleOwnerLogin(event)">
+        <div class="modal-body">
+          <p style="font-size:0.85rem; color:var(--muted); margin-bottom:16px;">
+            Sign in with your verified turf owner credentials to manage your ground's live slots and bookings.
+          </p>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">Owner Email *</label>
+            <input class="form-control" type="email" id="owner-login-email" name="email" placeholder="owner@yourground.pk" required />
+          </div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label class="form-label">Password *</label>
+            <input class="form-control" type="password" id="owner-login-password" name="password" placeholder="••••••••" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary" style="width:100%;">Sign In to Owner Portal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: OWNER PROFILE -->
+  <div class="modal-backdrop" id="modal-owner-profile">
+    <div class="modal-dialog" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="ph ph-user-circle"></i> Owner Account</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-owner-profile')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; align-items:center; gap:14px; padding:16px; background:var(--card-bg); border-radius:var(--radius-md); border:1px solid var(--border); margin-bottom:16px;">
+          <div style="width:44px; height:44px; border-radius:50%; background:var(--emerald); color:var(--lime); display:flex; align-items:center; justify-content:center; font-size:1.3rem;">
+            <i class="ph ph-user"></i>
+          </div>
+          <div>
+            <div style="font-weight:800; font-size:1rem;" id="modal-owner-name">Turf Owner</div>
+            <div style="font-size:0.8rem; color:var(--muted);" id="modal-owner-email">owner@groundsnearme.pk</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('modal-owner-profile')">Close</button>
+        <button type="button" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:#fca5a5;" onclick="signOutOwner()">
+          <i class="ph ph-sign-out"></i> Sign Out
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const CONFIG = {
+      supabaseUrl: 'https://mfybkflgkjpuqhlthagt.supabase.co',
+      supabaseAnon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1meWJrZmxna2pwdXFobHRoYWd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNzEzNzgsImV4cCI6MjEwMzc0NzM3OH0.z5r3FXEsGS7OPLR1Rugn7XDlYHxKMhdvDWsUcfnL20I'
+    };
+
+    let state = {
+      session: JSON.parse(sessionStorage.getItem('gnm_owner_session') || 'null'),
+      grounds: [],
+      currentGround: null,
+      selectedDate: new Date().toISOString().split('T')[0],
+      bookings: [],
+      closures: [],
+      currentView: 'schedule'
+    };
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('schedule-date-filter').value = state.selectedDate;
+      document.getElementById('owner-booking-date').value = state.selectedDate;
+      updateOwnerUI();
+      await loadGrounds();
+      await refreshData();
+      switchView('schedule');
+    });
+
+    /* ==========================================================================
+       OWNER AUTHENTICATION
+       ========================================================================== */
+    function updateOwnerUI() {
+      const isAuth = Boolean(state.session?.access_token);
+      const email = state.session?.user?.email || 'owner@groundsnearme.pk';
+      const authBtnText = document.getElementById('owner-auth-btn-text');
+      const accountRole = document.getElementById('owner-account-role');
+      if (authBtnText) authBtnText.textContent = isAuth ? 'Owner Active' : 'Sign In';
+      if (accountRole) accountRole.textContent = isAuth ? 'Verified Owner' : 'Turf Manager';
+
+      const modalOwnerName = document.getElementById('modal-owner-name');
+      const modalOwnerEmail = document.getElementById('modal-owner-email');
+      if (modalOwnerName) modalOwnerName.textContent = email.split('@')[0];
+      if (modalOwnerEmail) modalOwnerEmail.textContent = email;
+    }
+
+    function openOwnerAuthModal() {
+      if (!state.session) {
+        openModal('modal-owner-login');
+      } else {
+        openModal('modal-owner-profile');
+      }
+    }
+
+    async function handleOwnerLogin(e) {
+      e.preventDefault();
+      const form = e.target;
+      const email = form.elements['email'].value.trim();
+      const password = form.elements['password'].value;
+      await performOwnerLogin(email, password);
+    }
+
+    async function performOwnerLogin(email, password) {
+      try {
+        const res = await fetch(`${CONFIG.supabaseUrl}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': CONFIG.supabaseAnon
+          },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error_description || data.message || 'Login failed');
+        }
+        state.session = data;
+        sessionStorage.setItem('gnm_owner_session', JSON.stringify(data));
+        updateOwnerUI();
+        closeModal('modal-owner-login');
+        showToast(`Signed in as ${email}!`, 'success');
+        await loadGrounds();
+        await refreshData();
+      } catch (err) {
+        showToast(`Login failed: ${err.message}`, 'error');
+      }
+    }
+
+    function signOutOwner() {
+      state.session = null;
+      sessionStorage.removeItem('gnm_owner_session');
+      updateOwnerUI();
+      closeModal('modal-owner-profile');
+      showToast('Signed out of owner portal', 'info');
+      loadGrounds();
+    }
+
+    /* ==========================================================================
+       DATA FETCHING & RLS AUTH
+       ========================================================================== */
+    async function sbFetch(endpoint, options = {}) {
+      const url = `${CONFIG.supabaseUrl}/rest/v1/${endpoint}`;
+      const token = state.session?.access_token || CONFIG.supabaseAnon;
+      const headers = {
+        'apikey': CONFIG.supabaseAnon,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      const res = await fetch(url, { ...options, headers });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          console.warn('[GNM] Owner unauthorized or token expired.');
+          if (!state.session) openModal('modal-owner-login');
+        }
+        const text = await res.text();
+        let msg = res.statusText;
+        try { msg = JSON.parse(text).message || msg; } catch (_) {}
+        throw new Error(msg);
+      }
+      const text = await res.text();
+      if (!text) return null;
+      return JSON.parse(text);
+    }
+
+    async function loadGrounds() {
+      // 1. If not authenticated, strictly block access - do NOT query or show other owners' grounds
+      if (!state.session?.user?.id) {
+        state.grounds = [];
+        state.currentGround = null;
+        const select = document.getElementById('owner-ground-select');
+        if (select) select.innerHTML = '<option value="">Sign In Required</option>';
+        const mgrName = document.getElementById('owner-manager-name');
+        if (mgrName) mgrName.textContent = 'Sign In Required';
+        const container = document.getElementById('main-content');
+        if (container) {
+          container.innerHTML = `
+            <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:48px 24px; text-align:center; max-width:500px; margin:40px auto; box-shadow:var(--shadow-md);">
+              <div style="width:56px; height:56px; border-radius:50%; background:var(--emerald-light); color:var(--emerald); display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:16px;">
+                <i class="ph ph-lock-key"></i>
+              </div>
+              <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">Turf Owner Portal</h3>
+              <p style="color:var(--muted); font-size:0.875rem; line-height:1.6; margin-bottom:24px;">
+                Please sign in with your verified turf owner credentials to manage your ground's live schedule, rates, and bookings.
+              </p>
+              <button class="btn btn-primary" onclick="openModal('modal-owner-login')" style="padding:12px 28px;">
+                <i class="ph ph-sign-in"></i> Sign In to Your Turf
+              </button>
+            </div>
+          `;
+        }
+        openModal('modal-owner-login');
+        return;
+      }
+
+      try {
+        // Prune SELECT columns for quota efficiency
+        const groundsSelect = 'id,slug,name,owner_id,price_per_hour,weekend_price_per_hour,surface,whatsapp_number,contact_name,address,status';
+        
+        // Strictly query ONLY grounds belonging to this authenticated owner
+        const endpoint = `grounds?select=${groundsSelect}&owner_id=eq.${state.session.user.id}&order=name.asc`;
+        const fetched = await sbFetch(endpoint);
+        state.grounds = fetched || [];
+
+        // If no grounds belong to this account, DO NOT leak other owners' grounds!
+        if (state.grounds.length === 0) {
+          state.currentGround = null;
+          const select = document.getElementById('owner-ground-select');
+          if (select) select.innerHTML = '<option value="">No venue registered</option>';
+          const mgrName = document.getElementById('owner-manager-name');
+          if (mgrName) mgrName.textContent = state.session.user.email.split('@')[0];
+          const container = document.getElementById('main-content');
+          if (container) {
+            container.innerHTML = `
+              <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:48px 24px; text-align:center; max-width:540px; margin:40px auto; box-shadow:var(--shadow-md);">
+                <div style="width:56px; height:56px; border-radius:50%; background:var(--warning-bg); color:var(--warning); display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:16px;">
+                  <i class="ph ph-warning"></i>
+                </div>
+                <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">No Venue Linked</h3>
+                <p style="color:var(--muted); font-size:0.875rem; line-height:1.6; margin-bottom:16px;">
+                  Signed in as <strong>${state.session.user.email}</strong>, but no ground has been linked to your account yet.
+                </p>
+                <p style="font-size:0.8rem; color:var(--muted); margin-bottom:24px;">
+                  Contact GroundsNearMe Operations via WhatsApp to link your turf to this account.
+                </p>
+                <button class="btn btn-secondary btn-sm" onclick="signOutOwner()">
+                  <i class="ph ph-sign-out"></i> Switch Account
+                </button>
+              </div>
+            `;
+          }
+          return;
+        }
+
+        // Owner has 1 or more grounds
+        state.currentGround = state.grounds[0];
+
+        // If URL param specified and matches ONE OF THEIR OWN grounds, select it
+        const urlParams = new URLSearchParams(window.location.search);
+        const groundParam = urlParams.get('ground');
+        if (groundParam) {
+          const match = state.grounds.find(g => g.slug === groundParam || g.id === groundParam);
+          if (match) state.currentGround = match;
+        }
+
+        const select = document.getElementById('owner-ground-select');
+        if (select) {
+          // Strictly display only this owner's own venues
+          select.innerHTML = state.grounds.map(g => `<option value="${g.id}" ${state.currentGround?.id === g.id ? 'selected' : ''}>${g.name}</option>`).join('');
+          // If only 1 ground owned, lock selector so it's impossible to switch
+          if (state.grounds.length <= 1) {
+            select.style.pointerEvents = 'none';
+            select.style.opacity = '0.9';
+          } else {
+            select.style.pointerEvents = 'all';
+            select.style.opacity = '1';
+          }
+        }
+
+        if (state.currentGround) {
+          const mgrName = document.getElementById('owner-manager-name');
+          if (mgrName) mgrName.textContent = state.currentGround.contact_name || state.currentGround.name;
+        }
+      } catch (e) {
+        showToast('Error loading your grounds', 'error');
+      }
+    }
+
+    async function refreshData() {
+      if (!state.currentGround) return;
+      try {
+        const bookingsSelect = 'id,booking_ref,ground_id,booking_date,start_time,end_time,duration_minutes,contact_name,contact_phone,notes,source,payment_status,status,price_per_hour,total_amount';
+        const closuresSelect = 'id,ground_id,starts_on,ends_on,reason';
+
+        const [bookings, closures] = await Promise.allSettled([
+          sbFetch(`bookings?select=${bookingsSelect}&ground_id=eq.${state.currentGround.id}&order=booking_date.desc,start_time.asc`),
+          sbFetch(`ground_closures?select=${closuresSelect}&ground_id=eq.${state.currentGround.id}&order=starts_on.desc`)
+        ]);
+
+        if (bookings.status === 'fulfilled') state.bookings = bookings.value || [];
+        if (closures.status === 'fulfilled') state.closures = closures.value || [];
+
+        const navCount = document.getElementById('nav-bookings-count');
+        if (navCount) navCount.textContent = state.bookings.length;
+        renderCurrentView();
+        showToast('Live schedule refreshed', 'success');
+      } catch (e) {
+        showToast('Error syncing data', 'error');
+      }
+    }
+
+    function handleGroundChange(id) {
+      state.currentGround = state.grounds.find(g => g.id === id);
+      if (state.currentGround) {
+        const mgrName = document.getElementById('owner-manager-name');
+        if (mgrName) mgrName.textContent = state.currentGround.contact_name || state.currentGround.name;
+      }
+      refreshData();
+    }
+
+    function handleDateChange(d) {
+      state.selectedDate = d;
+      renderCurrentView();
+    }
+
+    function switchView(view) {
+      state.currentView = view;
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.view === view);
+      });
+
+      const heading = document.getElementById('page-heading');
+      const titles = {
+        schedule: 'Live Slot Schedule',
+        bookings: 'All Bookings History',
+        pricing: 'Hourly Rates & Turf Details',
+        closures: 'Ground Maintenance & Blackouts'
+      };
+      if (heading) heading.textContent = titles[view] || 'Owner Portal';
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      const container = document.getElementById('main-content');
+      if (!container) return;
+      switch (state.currentView) {
+        case 'schedule': renderScheduleView(container); break;
+        case 'bookings': renderBookingsView(container); break;
+        case 'pricing': renderPricingView(container); break;
+        case 'closures': renderClosuresView(container); break;
+      }
+    }
+
+    function renderScheduleView(container) {
+      if (!state.currentGround) {
+        container.innerHTML = '<div class="empty-state"><p>No grounds found for this account.</p></div>';
+        return;
+      }
+
+      const isClosed = state.closures.some(c => state.selectedDate >= c.starts_on && state.selectedDate <= c.ends_on);
+      const dayBookings = state.bookings.filter(b => b.booking_date === state.selectedDate && b.status !== 'cancelled');
+
+      const slots = [
+        '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', 
+        '22:00', '23:00', '00:00', '01:00', '02:00', '03:00'
+      ];
+
+      container.innerHTML = `
+        ${isClosed ? `
+          <div style="background:var(--danger-bg); border:1px solid #fca5a5; color:var(--danger); padding:16px 20px; border-radius:var(--radius-md); margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+            <i class="ph ph-warning-circle" style="font-size:1.4rem;"></i>
+            <div>
+              <div style="font-weight:700;">Ground Closed for Maintenance</div>
+              <div style="font-size:0.8rem;">This date is marked as closed for pitch rolling or repairs. New online slots are blocked.</div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="schedule-grid">
+          ${slots.map(slotTime => {
+            const booking = dayBookings.find(b => b.start_time.startsWith(slotTime));
+            const isBooked = Boolean(booking);
+            return `
+              <div class="slot-card ${isBooked ? 'booked' : 'available'}">
+                <div class="slot-time">${slotTime} - ${getEndTime(slotTime)}</div>
+                <div class="slot-status">
+                  <span class="slot-dot"></span>
+                  <span>${isBooked ? 'Booked' : 'Available'}</span>
+                </div>
+                ${isBooked ? `
+                  <div class="slot-booking-info">
+                    <div class="slot-player-name">${booking.contact_name || 'Walk-in Player'}</div>
+                    <div class="slot-ref mono">${booking.booking_ref}</div>
+                    <div style="margin-top:6px; display:flex; gap:6px;">
+                      <span class="badge badge-${booking.payment_status}">${booking.payment_status}</span>
+                      <span class="badge" style="background:#fff;">PKR ${Number(booking.total_amount).toLocaleString()}</span>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <button class="btn btn-secondary btn-sm" style="width:100%; color:var(--danger); border-color:#fca5a5; background:#fff;" onclick="quickReleaseSlot('${booking.id}', '${booking.booking_ref}')" title="Cancel booking and free up this slot">
+                        <i class="ph ph-x-circle"></i> Release Slot
+                      </button>
+                    </div>
+                  </div>
+                ` : `
+                  <div style="margin-top:16px;">
+                    <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="quickBookSlot('${slotTime}')">
+                      <i class="ph ph-plus-bold"></i> Block Slot
+                    </button>
+                  </div>
+                `}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function getEndTime(startTime) {
+      const [h] = startTime.split(':').map(Number);
+      const nextH = (h + 1) % 24;
+      return `${String(nextH).padStart(2, '0')}:00`;
+    }
+
+    function renderBookingsView(container) {
+      container.innerHTML = `
+        <div class="panel-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Date</th>
+                  <th>Time Slot</th>
+                  <th>Customer Name</th>
+                  <th>Phone / Notes</th>
+                  <th>Source</th>
+                  <th>Amount</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.bookings.map(b => `
+                  <tr>
+                    <td class="mono font-semibold" style="color:var(--emerald);">${b.booking_ref}</td>
+                    <td>${b.booking_date}</td>
+                    <td class="mono">${b.start_time.slice(0,5)} - ${b.end_time.slice(0,5)}</td>
+                    <td style="font-weight:700;">${b.contact_name || 'Walk-in'}</td>
+                    <td>
+                      <div>${b.contact_phone || '—'}</div>
+                      <div style="font-size:0.75rem; color:var(--muted);">${b.notes || ''}</div>
+                    </td>
+                    <td><span class="badge" style="background:#eef2f6; color:#334155;">${b.source}</span></td>
+                    <td class="display-num">PKR ${Number(b.total_amount).toLocaleString()}</td>
+                    <td><span class="badge badge-${b.payment_status}">${b.payment_status}</span></td>
+                    <td>
+                      <select class="form-control" style="padding:4px 8px; font-size:0.75rem; width:110px;" onchange="setBookingStatus('${b.id}', this.value)">
+                        <option value="confirmed" ${b.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+                        <option value="completed" ${b.status === 'completed' ? 'selected' : ''}>Completed</option>
+                        <option value="cancelled" ${b.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                        <option value="no_show" ${b.status === 'no_show' ? 'selected' : ''}>No Show</option>
+                      </select>
+                    </td>
+                    <td>
+                      <div style="display:flex; gap:4px;">
+                        ${b.status !== 'cancelled' ? `
+                          <button class="btn btn-secondary btn-sm" onclick="quickReleaseSlot('${b.id}', '${b.booking_ref}')" title="Release Slot">
+                            <i class="ph ph-x-circle"></i> Release
+                          </button>
+                        ` : ''}
+                        <button class="btn btn-ghost btn-sm btn-icon-only" style="color:var(--danger);" onclick="deleteBookingRecord('${b.id}')" title="Delete Booking">
+                          <i class="ph ph-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="10" style="text-align:center; padding:40px;">No bookings recorded for this ground.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPricingView(container) {
+      if (!state.currentGround) return;
+      const g = state.currentGround;
+      container.innerHTML = `
+        <div class="panel-card" style="max-width:680px;">
+          <form onsubmit="handleUpdatePricing(event)">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Standard Price / Hour (PKR) *</label>
+                <input class="form-control" type="number" name="price_per_hour" value="${g.price_per_hour}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Weekend Rate / Hour (PKR)</label>
+                <input class="form-control" type="number" name="weekend_price_per_hour" value="${g.weekend_price_per_hour || ''}" placeholder="e.g. 3000" />
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Manager Contact Name</label>
+                <input class="form-control" name="contact_name" value="${g.contact_name || ''}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">WhatsApp Booking Number</label>
+                <input class="form-control" name="whatsapp_number" value="${g.whatsapp_number || ''}" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pitch Surface</label>
+              <input class="form-control" name="surface" value="${g.surface || ''}" placeholder="Astro turf, Matting" />
+            </div>
+            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+              <button type="submit" class="btn btn-primary">Save Rates & Details</button>
+            </div>
+          </form>
+        </div>
+      `;
+    }
+
+    function renderClosuresView(container) {
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div style="font-weight:700; color:var(--muted);">Scheduled Closures & Maintenance</div>
+          <button class="btn btn-primary" onclick="openModal('modal-add-closure')">
+            <i class="ph ph-plus-bold"></i> Block Dates for Maintenance
+          </button>
+        </div>
+        <div class="panel-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Reason / Maintenance Type</th>
+                  <th>Starts On</th>
+                  <th>Ends On</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.closures.map(c => `
+                  <tr>
+                    <td style="font-weight:700;">${c.reason}</td>
+                    <td>${c.starts_on}</td>
+                    <td>${c.ends_on}</td>
+                    <td>
+                      <button class="btn btn-secondary btn-sm" onclick="deleteClosure('${c.id}')">
+                        <i class="ph ph-trash"></i> Remove
+                      </button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" style="text-align:center; padding:40px;">No maintenance closures scheduled.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ==========================================================================
+       OWNER ACTIONS: BOOKING & RATES
+       Guaranteed valid 6-char alphanumeric ref: ^GNM-[0-9]{4}-[A-Z0-9]{6}$
+       ========================================================================== */
+    async function handleOwnerBooking(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const rate = state.currentGround.price_per_hour;
+      const duration = parseInt(formData.get('duration_minutes'), 10);
+      const totalAmount = (rate * duration) / 60;
+
+      const startTime = formData.get('start_time');
+      const [h, m] = startTime.split(':').map(Number);
+      const endHour = (h + Math.floor((m + duration) / 60)) % 24;
+      const endMin = (m + duration) % 60;
+      const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
+
+      // Always guarantee 6 uppercase alphanumeric characters
+      const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let randSuffix = '';
+      for (let i = 0; i < 6; i++) {
+        randSuffix += chars[Math.floor(Math.random() * chars.length)];
+      }
+      const ref = `GNM-${new Date().getFullYear()}-${randSuffix}`;
+
+      const payload = {
+        booking_ref: ref,
+        ground_id: state.currentGround.id,
+        booking_date: formData.get('booking_date'),
+        start_time: startTime.length === 5 ? startTime + ':00' : startTime,
+        end_time: endTime,
+        duration_minutes: duration,
+        contact_name: formData.get('contact_name'),
+        contact_phone: formData.get('contact_phone'),
+        notes: formData.get('notes'),
+        source: 'owner',
+        payment_status: formData.get('payment_status'),
+        status: 'confirmed',
+        price_per_hour: rate,
+        total_amount: totalAmount,
+        currency: 'PKR',
+        confirmed_at: new Date().toISOString()
+      };
+
+      try {
+        await sbFetch('bookings', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Prefer': 'return=representation' }
+        });
+        showToast(`Slot blocked for ${payload.contact_name}!`, 'success');
+        closeModal('modal-manual-booking');
+        form.reset();
+        await refreshData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function handleUpdatePricing(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      let waDigits = (formData.get('whatsapp_number') || '').replace(/\D/g, '');
+      if (waDigits.startsWith('03') && waDigits.length === 11) waDigits = '92' + waDigits.slice(1);
+
+      const payload = {
+        price_per_hour: parseInt(formData.get('price_per_hour'), 10),
+        weekend_price_per_hour: formData.get('weekend_price_per_hour') ? parseInt(formData.get('weekend_price_per_hour'), 10) : null,
+        contact_name: formData.get('contact_name'),
+        whatsapp_number: waDigits,
+        surface: formData.get('surface')
+      };
+
+      try {
+        await sbFetch(`grounds?id=eq.${state.currentGround.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+          headers: { 'Prefer': 'return=minimal' }
+        });
+        showToast('Rates & details updated successfully!', 'success');
+        await loadGrounds();
+        await refreshData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function handleAddClosure(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const payload = {
+        ground_id: state.currentGround.id,
+        starts_on: formData.get('starts_on'),
+        ends_on: formData.get('ends_on'),
+        reason: formData.get('reason')
+      };
+
+      try {
+        await sbFetch('ground_closures', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Prefer': 'return=representation' }
+        });
+        showToast('Maintenance closure dates blocked!', 'success');
+        closeModal('modal-add-closure');
+        form.reset();
+        await refreshData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function deleteClosure(id) {
+      try {
+        await sbFetch(`ground_closures?id=eq.${id}`, { method: 'DELETE' });
+        showToast('Closure removed', 'success');
+        await refreshData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function setBookingStatus(id, newStatus) {
+      if (newStatus === 'cancelled') {
+        await quickReleaseSlot(id);
+        return;
+      }
+      try {
+        await sbFetch(`bookings?id=eq.${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus }),
+          headers: { 'Prefer': 'return=minimal' }
+        });
+        showToast(`Booking ${newStatus}`, 'success');
+        await refreshData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function quickReleaseSlot(bookingId, bookingRef) {
+      const b = state.bookings.find(x => x.id === bookingId);
+      const ref = bookingRef || b?.booking_ref || bookingId;
+      if (!confirm(`Are you sure you want to release slot ${ref}? The slot will immediately become available.`)) return;
+
+      try {
+        let success = false;
+        // 1. Try release_booking RPC
+        try {
+          const res = await sbFetch('rpc/release_booking', {
+            method: 'POST',
+            body: JSON.stringify({ p_booking_id: bookingId, p_booking_ref: ref, p_reason: 'Released by turf manager' })
+          });
+          if (res && res.ok) success = true;
+        } catch (_) {}
+
+        // 2. Direct PATCH fallback
+        if (!success) {
+          await sbFetch(`bookings?id=eq.${bookingId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'cancelled', cancellation_reason: 'Released by turf manager', cancelled_at: new Date().toISOString() }),
+            headers: { 'Prefer': 'return=minimal' }
+          });
+        }
+
+        showToast('Slot released successfully! Now open for bookings.', 'success');
+        await refreshData();
+      } catch (err) {
+        showToast(`Could not release slot: ${err.message}`, 'error');
+      }
+    }
+
+    async function deleteBookingRecord(bookingId) {
+      if (!confirm('Are you sure you want to permanently delete this booking? The slot will immediately become open.')) return;
+      try {
+        let success = false;
+        try {
+          const res = await sbFetch('rpc/delete_booking', {
+            method: 'POST',
+            body: JSON.stringify({ p_booking_id: bookingId })
+          });
+          if (res && res.ok) success = true;
+        } catch (_) {}
+
+        if (!success) {
+          await sbFetch(`bookings?id=eq.${bookingId}`, {
+            method: 'DELETE',
+            headers: { 'Prefer': 'return=minimal' }
+          });
+        }
+
+        showToast('Booking deleted and slot reopened', 'info');
+        await refreshData();
+      } catch (err) {
+        showToast(`Error deleting booking: ${err.message}`, 'error');
+      }
+    }
+
+    function quickBookSlot(startTime) {
+      openModal('modal-manual-booking');
+      document.getElementById('owner-booking-date').value = state.selectedDate;
+      const form = document.getElementById('form-owner-booking');
+      form.elements['start_time'].value = startTime;
+    }
+
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('open');
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<i class="ph ph-${type === 'success' ? 'check-circle' : 'warning-circle'}"></i> <span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.2s';
+        setTimeout(() => toast.remove(), 200);
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
