@@ -1467,10 +1467,19 @@
       switchView('overview');
     });
 
+    function isSuperAdmin() {
+      if (!state.session?.user) return false;
+      const email = (state.session.user.email || '').toLowerCase();
+      const appRole = state.session.user.app_metadata?.gnm_role;
+      const userRole = state.session.user.user_metadata?.role;
+      return email === 'faisalshayan444@gmail.com' || appRole === 'superadmin' || userRole === 'superadmin';
+    }
+
     function updateStaffUI() {
       const isAuth = Boolean(state.session?.access_token);
       const email = state.session?.user?.email || 'admin@groundsnearme.pk';
-      const role = state.session?.user?.user_metadata?.account_type || state.session?.user?.app_metadata?.gnm_role || (isAuth ? 'Staff Admin' : 'Unauthenticated');
+      const superUser = isSuperAdmin();
+      const role = superUser ? 'Superadmin' : (isAuth ? 'Admin (Operations)' : 'Unauthenticated');
       const initial = email.charAt(0).toUpperCase();
 
       const nameEl = document.getElementById('sidebar-user-name');
@@ -1482,6 +1491,15 @@
       if (roleEl) roleEl.textContent = isAuth ? (role.toUpperCase()) : 'OFFLINE';
       if (avatarEl) avatarEl.textContent = initial || 'S';
       if (authBtnText) authBtnText.textContent = isAuth ? 'Staff Session' : 'Sign In';
+
+      const brandBadge = document.querySelector('.brand-badge');
+      if (brandBadge) brandBadge.textContent = superUser ? 'Superadmin Ops' : (isAuth ? 'Admin Console' : 'Staff Access');
+
+      // Restrict Commercial/Financial navigation for Normal Admin
+      const subsNav = document.querySelector('.nav-item[data-view="subscriptions"]');
+      const financeNav = document.querySelector('.nav-item[data-view="finance"]');
+      if (subsNav) subsNav.style.display = superUser ? 'flex' : 'none';
+      if (financeNav) financeNav.style.display = superUser ? 'flex' : 'none';
 
       const modalAvatar = document.getElementById('modal-user-avatar');
       const modalName = document.getElementById('modal-user-name');
@@ -1585,25 +1603,31 @@
         const leadsSelect = 'id,owner_name,whatsapp_number,phone,ground_name,area_text,city,asking_price,source,status,notes,created_at';
         const subsSelect = 'id,owner_id,ground_id,tier,cycle_start,cycle_end,amount,currency,status,payment_method,invoice_ref,paid_at,ground:grounds(id,name)';
 
-        const [areas, grounds, bookings, leads, subs] = await Promise.allSettled([
+        const isSuper = isSuperAdmin();
+        const fetches = [
           sbFetch('areas?select=id,name,slug,city,sort_order&is_active=eq.true&order=sort_order.asc'),
           sbFetch(`grounds?select=${groundsSelect}&order=created_at.desc&limit=100`),
           sbFetch(`bookings?select=${bookingsSelect}&order=booking_date.desc,start_time.asc&limit=100`),
-          sbFetch(`ground_leads?select=${leadsSelect}&order=created_at.desc&limit=100`),
-          sbFetch(`owner_subscriptions?select=${subsSelect}&order=cycle_start.desc&limit=100`)
-        ]);
+          sbFetch(`ground_leads?select=${leadsSelect}&order=created_at.desc&limit=100`)
+        ];
+        if (isSuper) {
+          fetches.push(sbFetch(`owner_subscriptions?select=${subsSelect}&order=cycle_start.desc&limit=100`));
+        }
 
-        if (areas.status === 'fulfilled') state.areas = areas.value || [];
-        if (grounds.status === 'fulfilled') {
-          state.grounds = grounds.value || [];
+        const results = await Promise.allSettled(fetches);
+
+        if (results[0]?.status === 'fulfilled') state.areas = results[0].value || [];
+        if (results[1]?.status === 'fulfilled') {
+          state.grounds = results[1].value || [];
           if (!state.selectedGround && state.grounds.length > 0) state.selectedGround = state.grounds[0];
         }
-        if (bookings.status === 'fulfilled') {
-          state.bookings = bookings.value || [];
+        if (results[2]?.status === 'fulfilled') {
+          state.bookings = results[2].value || [];
           if (!state.selectedBooking && state.bookings.length > 0) state.selectedBooking = state.bookings[0];
         }
-        if (leads.status === 'fulfilled') state.leads = leads.value || [];
-        if (subs.status === 'fulfilled') state.subscriptions = subs.value || [];
+        if (results[3]?.status === 'fulfilled') state.leads = results[3].value || [];
+        if (isSuper && results[4]?.status === 'fulfilled') state.subscriptions = results[4].value || [];
+        else if (!isSuper) state.subscriptions = [];
 
         updateNavCounts();
         populateSelects();
@@ -1663,6 +1687,10 @@
     }
 
     function switchView(view) {
+      if (!isSuperAdmin() && (view === 'finance' || view === 'subscriptions')) {
+        showToast('Access Restricted: Financial & subscription records are reserved for Superadmin.', 'error');
+        view = 'grounds';
+      }
       state.currentView = view;
       toggleMobileSidebar(false);
       document.querySelectorAll('.nav-item').forEach(el => {
@@ -1701,11 +1729,33 @@
     }
 
     function renderOverviewView(container) {
+      const superUser = isSuperAdmin();
       const totalRevenue = state.bookings
         .filter(b => b.status === 'confirmed' || b.status === 'completed')
         .reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
       const activeGrounds = state.grounds.filter(g => g.status === 'active').length;
       const pendingLeads = state.leads.filter(l => l.status === 'new' || l.status === 'contacted').length;
+
+      const financialCardHtml = superUser ? `
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Gross Volume</span>
+            <div class="stat-icon-wrap"><i class="ph ph-currency-dollar"></i></div>
+          </div>
+          <div class="stat-value display-num">PKR ${totalRevenue.toLocaleString()}</div>
+          <div class="stat-sub positive"><i class="ph ph-trend-up"></i> Confirmed bookings</div>
+        </div>
+      ` : `
+        <div class="stat-card" style="opacity:0.75;">
+          <div class="stat-top">
+            <span class="stat-label">Financial Access</span>
+            <div class="stat-icon-wrap"><i class="ph ph-lock-key"></i></div>
+          </div>
+          <div class="stat-value display-num" style="font-size:1.15rem; color:var(--muted); font-weight:700;">Superadmin Only</div>
+          <div class="stat-sub"><i class="ph ph-shield-check"></i> Money handled by Superadmin</div>
+        </div>
+      `;
+
       container.innerHTML = `
         <div class="stats-grid">
           <div class="stat-card">
@@ -1724,14 +1774,7 @@
             <div class="stat-value display-num">${state.bookings.length}</div>
             <div class="stat-sub"><i class="ph ph-clock"></i> Active bookings</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-top">
-              <span class="stat-label">Gross Volume</span>
-              <div class="stat-icon-wrap"><i class="ph ph-currency-dollar"></i></div>
-            </div>
-            <div class="stat-value display-num">PKR ${totalRevenue.toLocaleString()}</div>
-            <div class="stat-sub positive"><i class="ph ph-trend-up"></i> Confirmed bookings</div>
-          </div>
+          ${financialCardHtml}
           <div class="stat-card">
             <div class="stat-top">
               <span class="stat-label">WhatsApp Leads</span>
@@ -2056,6 +2099,21 @@
     }
 
     function renderSubscriptionsView(container) {
+      if (!isSuperAdmin()) {
+        container.innerHTML = `
+          <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:60px 24px; text-align:center; max-width:540px; margin:40px auto; box-shadow:var(--shadow-md);">
+            <div style="width:56px; height:56px; border-radius:50%; background:var(--warning-bg); color:var(--warning); display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:16px;">
+              <i class="ph ph-shield-warning"></i>
+            </div>
+            <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">Access Restricted</h3>
+            <p style="color:var(--muted); font-size:0.875rem; line-height:1.6; margin-bottom:20px;">
+              This section contains commercial subscription records. Only the Superadmin is authorized to view this ledger.
+            </p>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('grounds')">Return to Grounds Directory</button>
+          </div>
+        `;
+        return;
+      }
       container.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
           <div style="font-weight:700; color:var(--muted);">Pro Tier Monthly Subscription Cycles (${state.subscriptions.length} cycles)</div>
@@ -2099,6 +2157,21 @@
     }
 
     function renderFinanceView(container) {
+      if (!isSuperAdmin()) {
+        container.innerHTML = `
+          <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:60px 24px; text-align:center; max-width:540px; margin:40px auto; box-shadow:var(--shadow-md);">
+            <div style="width:56px; height:56px; border-radius:50%; background:var(--warning-bg); color:var(--warning); display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:16px;">
+              <i class="ph ph-shield-warning"></i>
+            </div>
+            <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">Financial Access Restricted</h3>
+            <p style="color:var(--muted); font-size:0.875rem; line-height:1.6; margin-bottom:20px;">
+              Gross revenue volume and commissions are restricted to Superadmin. Normal admin accounts are limited to Ground operations and WhatsApp leads.
+            </p>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('leads')">Return to WhatsApp CRM</button>
+          </div>
+        `;
+        return;
+      }
       const gross = state.bookings
         .filter(b => b.status === 'completed' || b.status === 'confirmed')
         .reduce((sum, b) => sum + Number(b.total_amount || 0), 0);

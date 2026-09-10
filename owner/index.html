@@ -1221,11 +1221,13 @@
       }
     }
 
-    async function refreshData() {
+    async function refreshData(silent = false) {
       if (!state.currentGround) return;
       try {
         const bookingsSelect = 'id,booking_ref,ground_id,booking_date,start_time,end_time,duration_minutes,contact_name,contact_phone,notes,source,payment_status,status,price_per_hour,total_amount';
         const closuresSelect = 'id,ground_id,starts_on,ends_on,reason';
+
+        const prevCount = state.bookings.length;
 
         const [bookings, closures] = await Promise.allSettled([
           sbFetch(`bookings?select=${bookingsSelect}&ground_id=eq.${state.currentGround.id}&order=booking_date.desc,start_time.asc`),
@@ -1238,11 +1240,27 @@
         const navCount = document.getElementById('nav-bookings-count');
         if (navCount) navCount.textContent = state.bookings.length;
         renderCurrentView();
-        showToast('Live schedule refreshed', 'success');
+
+        if (silent) {
+          // If new booking arrived while owner had portal open, alert them immediately!
+          if (state.bookings.length > prevCount && prevCount > 0) {
+            const newB = state.bookings[0];
+            showToast(`🎉 New Booking: ${newB.booking_ref} (${newB.contact_name || 'Customer'})`, 'success');
+          }
+        } else {
+          showToast('Live schedule refreshed', 'success');
+        }
       } catch (e) {
-        showToast('Error syncing data', 'error');
+        if (!silent) showToast('Error syncing data', 'error');
       }
     }
+
+    // Auto-refresh every 25 seconds so owner sees new online bookings in real-time
+    setInterval(() => {
+      if (state.currentGround && state.session?.user?.id) {
+        refreshData(true);
+      }
+    }, 25000);
 
     function handleGroundChange(id) {
       state.currentGround = state.grounds.find(g => g.id === id);
