@@ -1,4 +1,4 @@
-﻿**/node_modules/
+**/node_modules/
 node_modules/
 **/.wrangler/
 .wrangler/
@@ -17,3 +17,8 @@ node_modules/
 dist/
 .DS_Store
 Thumbs.db
+
+# Internal developer scripts with test credentials/keys
+tools/
+*.bat
+skills/
