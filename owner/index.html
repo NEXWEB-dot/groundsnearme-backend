@@ -650,6 +650,101 @@
       from { transform: translateX(100%); opacity: 0; }
       to { transform: translateX(0); opacity: 1; }
     }
+
+    /* ==========================================================================
+       MOBILE RESPONSIVENESS & TOUCH PERFORMANCE
+       ========================================================================== */
+    .mobile-menu-btn {
+      display: none !important;
+    }
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 998;
+    }
+    .sidebar-backdrop.active {
+      display: block;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+      }
+      #app {
+        flex-direction: column;
+        width: 100%;
+        height: auto;
+        min-height: 100vh;
+        padding: 8px;
+        gap: 8px;
+      }
+      aside.sidebar {
+        position: fixed;
+        top: 0;
+        left: -290px;
+        width: 270px;
+        height: 100vh;
+        z-index: 999;
+        transition: left 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+        border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+      }
+      aside.sidebar.mobile-open {
+        left: 0;
+      }
+      .mobile-menu-btn {
+        display: inline-flex !important;
+      }
+      main.viewport {
+        width: 100%;
+        min-height: calc(100vh - 16px);
+        height: auto;
+        overflow: visible;
+      }
+      header.topbar {
+        padding: 10px 14px;
+        height: auto;
+        min-height: 56px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .page-title {
+        font-size: 1.15rem;
+      }
+      .topbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .topbar-actions input[type="date"] {
+        flex: 1;
+        min-width: 130px;
+      }
+      .schedule-grid {
+        grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)) !important;
+        gap: 8px !important;
+      }
+      .slot-card {
+        min-height: 50px;
+        padding: 10px 8px;
+      }
+      .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .modal-dialog {
+        width: 94vw;
+        max-height: 90vh;
+        margin: 16px auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -712,11 +807,15 @@
         </div>
       </div>
     </aside>
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMobileSidebar(false)"></div>
 
     <!-- MAIN VIEWPORT -->
     <main class="viewport">
       <header class="topbar">
         <div class="page-title-group">
+          <button class="btn btn-secondary btn-icon-only mobile-menu-btn" onclick="toggleMobileSidebar()" title="Toggle Navigation Menu">
+            <i class="ph ph-list" style="font-size:1.25rem;"></i>
+          </button>
           <h1 class="page-title" id="page-heading">Live Slot Schedule</h1>
           <div class="badge badge-open" id="view-indicator">Active Turf</div>
         </div>
@@ -1159,8 +1258,34 @@
       renderCurrentView();
     }
 
+    function toggleMobileSidebar(forceState) {
+      const sidebar = document.querySelector('aside.sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (!sidebar) return;
+      const isOpen = sidebar.classList.contains('mobile-open');
+      const shouldOpen = forceState !== undefined ? forceState : !isOpen;
+      if (shouldOpen) {
+        sidebar.classList.add('mobile-open');
+        if (backdrop) backdrop.classList.add('active');
+      } else {
+        sidebar.classList.remove('mobile-open');
+        if (backdrop) backdrop.classList.remove('active');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function switchView(view) {
       state.currentView = view;
+      toggleMobileSidebar(false);
       document.querySelectorAll('.nav-item').forEach(el => {
         el.classList.toggle('active', el.dataset.view === view);
       });
@@ -1207,7 +1332,7 @@
             <i class="ph ph-warning-circle" style="font-size:1.4rem;"></i>
             <div>
               <div style="font-weight:700;">Ground Closed for Maintenance</div>
-              <div style="font-size:0.8rem;">This date is marked as closed for pitch rolling or repairs. New online slots are blocked.</div>
+              <div style="font-size:0.8rem;">All regular bookings are suspended for this date.</div>
             </div>
           </div>
         ` : ''}
@@ -1225,8 +1350,8 @@
                 </div>
                 ${isBooked ? `
                   <div class="slot-booking-info">
-                    <div class="slot-player-name">${booking.contact_name || 'Walk-in Player'}</div>
-                    <div class="slot-ref mono">${booking.booking_ref}</div>
+                    <div class="slot-player-name">${escapeHtml(booking.contact_name || 'Walk-in Player')}</div>
+                    <div class="slot-ref mono">${escapeHtml(booking.booking_ref)}</div>
                     <div style="margin-top:6px; display:flex; gap:6px;">
                       <span class="badge badge-${booking.payment_status}">${booking.payment_status}</span>
                       <span class="badge" style="background:#fff;">PKR ${Number(booking.total_amount).toLocaleString()}</span>
@@ -1279,13 +1404,13 @@
               <tbody>
                 ${state.bookings.map(b => `
                   <tr>
-                    <td class="mono font-semibold" style="color:var(--emerald);">${b.booking_ref}</td>
+                    <td class="mono font-semibold" style="color:var(--emerald);">${escapeHtml(b.booking_ref)}</td>
                     <td>${b.booking_date}</td>
                     <td class="mono">${b.start_time.slice(0,5)} - ${b.end_time.slice(0,5)}</td>
-                    <td style="font-weight:700;">${b.contact_name || 'Walk-in'}</td>
+                    <td style="font-weight:700;">${escapeHtml(b.contact_name || 'Walk-in')}</td>
                     <td>
-                      <div>${b.contact_phone || '—'}</div>
-                      <div style="font-size:0.75rem; color:var(--muted);">${b.notes || ''}</div>
+                      <div>${escapeHtml(b.contact_phone || '—')}</div>
+                      <div style="font-size:0.75rem; color:var(--muted);">${escapeHtml(b.notes || '')}</div>
                     </td>
                     <td><span class="badge" style="background:#eef2f6; color:#334155;">${b.source}</span></td>
                     <td class="display-num">PKR ${Number(b.total_amount).toLocaleString()}</td>

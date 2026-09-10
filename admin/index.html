@@ -767,6 +767,102 @@
       font-size: 3rem;
       color: var(--muted-light);
       margin-bottom: 12px;
+    /* ==========================================================================
+       MOBILE RESPONSIVENESS & TOUCH PERFORMANCE
+       ========================================================================== */
+    .mobile-menu-btn {
+      display: none !important;
+    }
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 998;
+    }
+    .sidebar-backdrop.active {
+      display: block;
+    }
+
+    @media (max-width: 960px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+      }
+      #app {
+        flex-direction: column;
+        width: 100%;
+        height: auto;
+        min-height: 100vh;
+        padding: 8px;
+        gap: 8px;
+      }
+      aside.sidebar {
+        position: fixed;
+        top: 0;
+        left: -290px;
+        width: 270px;
+        height: 100vh;
+        z-index: 999;
+        transition: left 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+        border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+      }
+      aside.sidebar.mobile-open {
+        left: 0;
+      }
+      .mobile-menu-btn {
+        display: inline-flex !important;
+      }
+      main.viewport {
+        width: 100%;
+        min-height: calc(100vh - 16px);
+        height: auto;
+        overflow: visible;
+      }
+      header.topbar {
+        padding: 10px 14px;
+        height: auto;
+        min-height: 56px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .page-title {
+        font-size: 1.15rem;
+      }
+      .topbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .search-box {
+        width: 100%;
+        max-width: 100%;
+      }
+      .search-box input {
+        width: 100%;
+      }
+      .dashboard-split {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+      }
+      .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+        gap: 10px !important;
+      }
+      .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .modal-dialog {
+        width: 94vw;
+        max-height: 90vh;
+        margin: 16px auto;
+      }
     }
   </style>
 </head>
@@ -845,10 +941,14 @@
         </div>
       </div>
     </aside>
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMobileSidebar(false)"></div>
 
     <main class="viewport">
       <header class="topbar">
         <div class="page-title-group">
+          <button class="btn btn-secondary btn-icon-only mobile-menu-btn" onclick="toggleMobileSidebar()" title="Toggle Navigation Menu">
+            <i class="ph ph-list" style="font-size:1.25rem;"></i>
+          </button>
           <h1 class="page-title" id="page-heading">Operations Overview</h1>
           <div class="badge badge-open" id="view-indicator">Real-time</div>
         </div>
@@ -1537,8 +1637,34 @@
       }
     }
 
+    function toggleMobileSidebar(forceState) {
+      const sidebar = document.querySelector('aside.sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (!sidebar) return;
+      const isOpen = sidebar.classList.contains('mobile-open');
+      const shouldOpen = forceState !== undefined ? forceState : !isOpen;
+      if (shouldOpen) {
+        sidebar.classList.add('mobile-open');
+        if (backdrop) backdrop.classList.add('active');
+      } else {
+        sidebar.classList.remove('mobile-open');
+        if (backdrop) backdrop.classList.remove('active');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function switchView(view) {
       state.currentView = view;
+      toggleMobileSidebar(false);
       document.querySelectorAll('.nav-item').forEach(el => {
         el.classList.toggle('active', el.dataset.view === view);
       });
@@ -1740,17 +1866,17 @@
                 ${filtered.map(g => `
                   <tr>
                     <td>
-                      <div style="font-weight:800; font-size:0.9rem; color:var(--ink);">${g.name}</div>
-                      <div style="font-size:0.75rem; color:var(--muted);">${g.address || 'Karachi'}</div>
+                      <div style="font-weight:800; font-size:0.9rem; color:var(--ink);">${escapeHtml(g.name)}</div>
+                      <div style="font-size:0.75rem; color:var(--muted);">${escapeHtml(g.address || 'Karachi')}</div>
                     </td>
-                    <td><span class="badge" style="background:#edf7f0; color:var(--emerald);">${g.area?.name || g.city}</span></td>
-                    <td>${g.surface || 'Standard'}</td>
+                    <td><span class="badge" style="background:#edf7f0; color:var(--emerald);">${escapeHtml(g.area?.name || g.city)}</span></td>
+                    <td>${escapeHtml(g.surface || 'Standard')}</td>
                     <td class="display-num" style="font-size:1.05rem;">PKR ${Number(g.price_per_hour).toLocaleString()}</td>
                     <td class="display-num" style="color:var(--muted);">${g.weekend_price_per_hour ? 'PKR ' + Number(g.weekend_price_per_hour).toLocaleString() : '—'}</td>
                     <td class="mono font-semibold">
-                      <a href="https://wa.me/${g.whatsapp_number}" target="_blank" style="display:flex; align-items:center; gap:4px; color:var(--emerald);">
+                      <a href="https://wa.me/${encodeURIComponent(g.whatsapp_number || '')}" target="_blank" style="display:flex; align-items:center; gap:4px; color:var(--emerald);">
                         <i class="ph ph-whatsapp-logo" style="color:var(--lime-dark);"></i>
-                        ${g.whatsapp_number || '—'}
+                        ${escapeHtml(g.whatsapp_number || '—')}
                       </a>
                     </td>
                     <td>
@@ -1795,7 +1921,7 @@
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <select class="form-control" style="width:200px; padding:6px 10px; font-size:0.75rem;" onchange="setBookingGroundFilter(this.value)">
               <option value="all" ${state.bookingFilterGround === 'all' ? 'selected' : ''}>All Grounds</option>
-              ${state.grounds.map(g => `<option value="${g.id}" ${state.bookingFilterGround === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}
+              ${state.grounds.map(g => `<option value="${g.id}" ${state.bookingFilterGround === g.id ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}
             </select>
             <input class="form-control" type="date" style="width:160px; padding:6px 10px; font-size:0.75rem;" value="${state.bookingFilterDate}" onchange="setBookingDateFilter(this.value)" placeholder="Filter by date" />
             ${state.bookingFilterDate || state.bookingFilterGround !== 'all' ? `
@@ -1813,12 +1939,12 @@
               <tbody>
                 ${filtered.map(b => `
                   <tr>
-                    <td class="mono font-semibold" style="color:var(--emerald);">${b.booking_ref}</td>
-                    <td style="font-weight:700;">${b.ground?.name || 'Ground'}</td>
+                    <td class="mono font-semibold" style="color:var(--emerald);">${escapeHtml(b.booking_ref)}</td>
+                    <td style="font-weight:700;">${escapeHtml(b.ground?.name || 'Ground')}</td>
                     <td>${b.booking_date}</td>
                     <td class="mono">${b.start_time.slice(0,5)} - ${b.end_time.slice(0,5)}</td>
                     <td>${b.duration_minutes}m</td>
-                    <td>${b.contact_name || 'Walk-in'}</td>
+                    <td>${escapeHtml(b.contact_name || 'Walk-in')}</td>
                     <td class="display-num" style="font-size:1rem;">PKR ${Number(b.total_amount).toLocaleString()}</td>
                     <td><span class="badge badge-${b.payment_status}">${b.payment_status}</span></td>
                     <td>
@@ -1887,17 +2013,17 @@
                 ${filtered.map(l => `
                   <tr>
                     <td class="mono font-semibold" style="color:var(--emerald);">
-                      <a href="https://wa.me/${l.whatsapp_number}?text=Hi%20${encodeURIComponent(l.owner_name || '')}%2C%20following%20up%20from%20GroundsNearMe%20regarding%20listing%20your%20cricket%20ground." target="_blank" style="display:flex; align-items:center; gap:6px; color:var(--emerald);" title="Open WhatsApp Chat">
+                      <a href="https://wa.me/${encodeURIComponent(l.whatsapp_number || '')}?text=Hi%20${encodeURIComponent(l.owner_name || '')}%2C%20following%20up%20from%20GroundsNearMe%20regarding%20listing%20your%20cricket%20ground." target="_blank" style="display:flex; align-items:center; gap:6px; color:var(--emerald);" title="Open WhatsApp Chat">
                         <i class="ph ph-whatsapp-logo" style="font-size:1.15rem; color:var(--lime-dark);"></i>
-                        ${l.whatsapp_number}
+                        ${escapeHtml(l.whatsapp_number)}
                       </a>
-                      ${l.phone ? `<div style="font-size:0.72rem; color:var(--muted); font-family:inherit;">Alt: ${l.phone}</div>` : ''}
+                      ${l.phone ? `<div style="font-size:0.72rem; color:var(--muted); font-family:inherit;">Alt: ${escapeHtml(l.phone)}</div>` : ''}
                     </td>
-                    <td style="font-weight:600;">${l.owner_name || '—'}</td>
-                    <td style="font-weight:700; color:var(--ink);">${l.ground_name || '—'}</td>
-                    <td><span class="badge" style="background:#edf7f0; color:var(--emerald);">${l.area_text || 'Karachi'}</span></td>
+                    <td style="font-weight:600;">${escapeHtml(l.owner_name || '—')}</td>
+                    <td style="font-weight:700; color:var(--ink);">${escapeHtml(l.ground_name || '—')}</td>
+                    <td><span class="badge" style="background:#edf7f0; color:var(--emerald);">${escapeHtml(l.area_text || 'Karachi')}</span></td>
                     <td class="display-num" style="color:var(--ink);">${l.asking_price ? 'PKR ' + Number(l.asking_price).toLocaleString() + '/hr' : '—'}</td>
-                    <td style="max-width:220px; font-size:0.78rem; color:var(--muted); white-space:pre-wrap; word-break:break-word;">${l.notes || 'No notes'}</td>
+                    <td style="max-width:220px; font-size:0.78rem; color:var(--muted); white-space:pre-wrap; word-break:break-word;">${escapeHtml(l.notes || 'No notes')}</td>
                     <td>
                       <select class="form-control" style="padding:4px 8px; font-size:0.75rem; width:115px;" onchange="updateLeadStatus('${l.id}', this.value)">
                         <option value="new" ${l.status === 'new' ? 'selected' : ''}>New</option>
