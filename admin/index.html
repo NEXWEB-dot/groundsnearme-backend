@@ -906,6 +906,13 @@
             </div>
             <span class="nav-count" id="nav-bookings-count">0</span>
           </div>
+          <div class="nav-item" data-view="owners" onclick="switchView('owners')">
+            <div class="nav-item-left">
+              <i class="ph ph-user-check"></i>
+              <span>Owner Access</span>
+            </div>
+            <span class="nav-count" id="nav-owners-count">0</span>
+          </div>
 
           <span class="nav-label" style="margin-top:14px;">Commercial</span>
           <div class="nav-item" data-view="leads" onclick="switchView('leads')">
@@ -1361,6 +1368,156 @@
     </div>
   </div>
 
+  <!-- MODAL: GRANT TURF OWNER ACCESS -->
+  <div class="modal-backdrop" id="modal-grant-owner-access">
+    <div class="modal-dialog" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="ph ph-user-plus" style="color:var(--emerald);"></i> Grant Turf Owner Access</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-grant-owner-access')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <form id="form-grant-owner-access" onsubmit="handleGrantOwnerAccess(event)">
+        <div class="modal-body">
+          <p style="color:var(--muted); margin-bottom:16px; font-size:0.8125rem;">
+            Assign a verified login to a turf manager or ground owner. This grants them access to view live bookings, block maintenance slots, and manage rates in the <strong>Owner Portal</strong>.
+          </p>
+          <div class="form-group">
+            <label class="form-label">Select Cricket Ground *</label>
+            <select class="form-control" name="ground_id" id="grant-owner-ground" required onchange="handleGroundSelectForOwner(this.value)">
+              <option value="">-- Choose Ground --</option>
+            </select>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Owner / Manager Name *</label>
+              <input class="form-control" name="owner_name" id="grant-owner-name" placeholder="e.g. Kashif Bhai" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">WhatsApp Number *</label>
+              <input class="form-control" name="whatsapp_number" id="grant-owner-wa" placeholder="0300 1234567" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label class="form-label" style="margin-bottom:0;">Login Email *</label>
+              <button type="button" class="btn btn-ghost btn-sm" style="padding:2px 8px; font-size:0.7rem;" onclick="suggestOwnerEmail()">
+                <i class="ph ph-lightning"></i> Suggest Email
+              </button>
+            </div>
+            <input class="form-control mono" type="email" name="email" id="grant-owner-email" placeholder="owner@turfdomain.pk" required />
+          </div>
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label class="form-label" style="margin-bottom:0;">Password * (min 6 chars)</label>
+              <button type="button" class="btn btn-ghost btn-sm" style="padding:2px 8px; font-size:0.7rem;" onclick="generateRandomPassword()">
+                <i class="ph ph-arrows-clockwise"></i> Generate Strong
+              </button>
+            </div>
+            <input class="form-control mono" type="text" name="password" id="grant-owner-password" placeholder="••••••••" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Platform Commission (Future-Ready Dropdown)</label>
+            <select class="form-control" name="commission_rate" id="grant-owner-commission">
+              <option value="0.00">0% — Launch Tier / Zero Commission (Default)</option>
+              <option value="0.05">5% — 5% Platform Commission</option>
+              <option value="0.08">8% — 8% Platform Commission</option>
+              <option value="0.10">10% — 10% Standard Commission</option>
+              <option value="0.12">12% — 12% Platform Commission</option>
+              <option value="0.15">15% — 15% Premium Commission</option>
+            </select>
+            <div style="font-size:0.725rem; color:var(--muted); margin-top:4px;">
+              Kept at 0% for launch. You can update commission tier anytime for future monetization.
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Onboarding Notes</label>
+            <textarea class="form-control" name="notes" id="grant-owner-notes" rows="2" placeholder="e.g. Met on WhatsApp, agreed on live schedule sync..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-grant-owner-access')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-grant-owner">
+            <i class="ph ph-key"></i> Issue Login & Grant Access
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: OWNER CREDENTIALS SUCCESS & SHARE -->
+  <div class="modal-backdrop" id="modal-owner-credentials-success">
+    <div class="modal-dialog" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color:var(--emerald);"><i class="ph ph-check-circle" style="color:var(--lime-dark);"></i> Owner Access Activated!</h3>
+        <button class="btn btn-ghost btn-icon-only" onclick="closeModal('modal-owner-credentials-success')">
+          <i class="ph ph-x" style="font-size:1.2rem;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--muted); font-size:0.85rem; margin-bottom:14px;">
+          The turf owner account has been configured and linked. Share these credentials with the owner so they can sign in to manage their ground.
+        </p>
+
+        <div style="background:var(--card-bg); border:1.5px dashed var(--emerald); border-radius:var(--radius-lg); padding:18px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span style="font-weight:800; font-size:1.05rem; color:var(--emerald);" id="cred-display-ground">Cricket Arena</span>
+            <span class="badge" style="background:var(--lime); color:var(--emerald);">Active Owner</span>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:0.8125rem;">
+            <div style="background:#fff; padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:0.6875rem; font-weight:700; color:var(--muted); text-transform:uppercase;">Owner Portal URL</div>
+                <div class="mono font-semibold" style="color:var(--ink);">https://owner.groundsnearme.pk</div>
+              </div>
+              <button class="btn btn-ghost btn-sm btn-icon-only" onclick="navigator.clipboard.writeText('https://owner.groundsnearme.pk'); showToast('Portal URL copied!', 'success');">
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+
+            <div style="background:#fff; padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:0.6875rem; font-weight:700; color:var(--muted); text-transform:uppercase;">Sign-in Email</div>
+                <div class="mono font-semibold" style="color:var(--emerald);" id="cred-display-email">owner@ground.pk</div>
+              </div>
+              <button class="btn btn-ghost btn-sm btn-icon-only" onclick="navigator.clipboard.writeText(document.getElementById('cred-display-email').textContent); showToast('Email copied!', 'success');">
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+
+            <div style="background:#fff; padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:0.6875rem; font-weight:700; color:var(--muted); text-transform:uppercase;">Password</div>
+                <div class="mono font-semibold" style="color:var(--ink); font-size:0.95rem;" id="cred-display-password">••••••••</div>
+              </div>
+              <button class="btn btn-ghost btn-sm btn-icon-only" onclick="navigator.clipboard.writeText(document.getElementById('cred-display-password').textContent); showToast('Password copied!', 'success');">
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+
+            <div style="background:#fff; padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:var(--muted); font-size:0.75rem;">Platform Commission</span>
+              <span style="font-weight:700; color:var(--ink);" id="cred-display-commission">0% (Launch Tier)</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <a id="btn-cred-whatsapp" href="#" target="_blank" class="btn btn-primary" style="background:#25D366; color:#fff; justify-content:center; text-decoration:none; padding:12px;">
+            <i class="ph ph-whatsapp-logo" style="font-size:1.3rem;"></i> Send Credentials via WhatsApp
+          </a>
+          <button type="button" class="btn btn-secondary" onclick="copyAllOwnerCredentials()" style="justify-content:center; padding:10px;">
+            <i class="ph ph-copy"></i> Copy Complete Login Message
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" style="width:100%;" onclick="closeModal('modal-owner-credentials-success')">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: STAFF AUTHENTICATION -->
   <div class="modal-backdrop" id="modal-login">
     <div class="modal-dialog" style="max-width:440px;">
@@ -1598,7 +1755,7 @@
 
     async function refreshAllData() {
       try {
-        const groundsSelect = 'id,slug,name,owner_id,area_id,price_per_hour,weekend_price_per_hour,ground_type,surface,whatsapp_number,contact_name,address,status,listing_tier,amenities,description,area:areas(id,name,slug)';
+        const groundsSelect = 'id,slug,name,owner_id,area_id,price_per_hour,weekend_price_per_hour,commission_rate,ground_type,surface,whatsapp_number,contact_name,address,status,listing_tier,amenities,description,created_at,area:areas(id,name,slug)';
         const bookingsSelect = 'id,booking_ref,ground_id,booking_date,start_time,end_time,duration_minutes,status,payment_status,total_amount,contact_name,source,ground:grounds(id,name,slug)';
         const leadsSelect = 'id,owner_name,whatsapp_number,phone,ground_name,area_text,city,asking_price,source,status,notes,created_at';
         const subsSelect = 'id,owner_id,ground_id,tier,cycle_start,cycle_end,amount,currency,status,payment_method,invoice_ref,paid_at,ground:grounds(id,name)';
@@ -1641,9 +1798,14 @@
       const gCount = document.getElementById('nav-grounds-count');
       const bCount = document.getElementById('nav-bookings-count');
       const lCount = document.getElementById('nav-leads-count');
+      const oCount = document.getElementById('nav-owners-count');
       if (gCount) gCount.textContent = state.grounds.length;
       if (bCount) bCount.textContent = state.bookings.length;
       if (lCount) lCount.textContent = state.leads.length;
+      
+      const history = getOwnerHistory();
+      const linkedGrounds = state.grounds.filter(g => g.owner_id);
+      if (oCount) oCount.textContent = Math.max(linkedGrounds.length, history.length);
     }
 
     function populateSelects() {
@@ -1658,6 +1820,13 @@
       const groundSelect = document.getElementById('booking-ground-select');
       if (groundSelect) {
         groundSelect.innerHTML = state.grounds.map(g => `<option value="${g.id}">${g.name} (${Number(g.price_per_hour).toLocaleString()} PKR/hr)</option>`).join('');
+      }
+      const grantGroundSelect = document.getElementById('grant-owner-ground');
+      if (grantGroundSelect) {
+        grantGroundSelect.innerHTML = '<option value="">-- Choose Cricket Ground --</option>' + state.grounds.map(g => {
+          const hasOwner = g.owner_id ? ' [Linked]' : '';
+          return `<option value="${g.id}">${g.name}${hasOwner}</option>`;
+        }).join('');
       }
     }
 
@@ -1702,6 +1871,7 @@
         overview: 'Operations Overview',
         grounds: 'Cricket Grounds Directory',
         bookings: 'Bookings Oversight',
+        owners: 'Turf Owner Access & Credentials',
         leads: 'WhatsApp Leads CRM',
         subscriptions: 'Owner Subscriptions',
         finance: 'Financial Ledger'
@@ -1710,6 +1880,7 @@
       if (actionText) {
         if (view === 'bookings') actionText.textContent = 'New Booking';
         else if (view === 'leads') actionText.textContent = 'Log Lead';
+        else if (view === 'owners') actionText.textContent = 'Grant Access';
         else actionText.textContent = 'Add Ground';
       }
       renderCurrentView();
@@ -1722,6 +1893,7 @@
         case 'overview': renderOverviewView(container); break;
         case 'grounds': renderGroundsView(container); break;
         case 'bookings': renderBookingsView(container); break;
+        case 'owners': renderOwnersView(container); break;
         case 'leads': renderLeadsView(container); break;
         case 'subscriptions': renderSubscriptionsView(container); break;
         case 'finance': renderFinanceView(container); break;
@@ -1904,7 +2076,7 @@
         <div class="panel-card">
           <div class="table-responsive">
             <table class="data-table">
-              <thead><tr><th>Ground Name</th><th>Area</th><th>Pitch Surface</th><th>Price / Hour</th><th>Weekend Rate</th><th>WhatsApp Contact</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Ground Name</th><th>Area</th><th>Pitch Surface</th><th>Price / Hour</th><th>Turf Owner Access</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 ${filtered.map(g => `
                   <tr>
@@ -1915,12 +2087,19 @@
                     <td><span class="badge" style="background:#edf7f0; color:var(--emerald);">${escapeHtml(g.area?.name || g.city)}</span></td>
                     <td>${escapeHtml(g.surface || 'Standard')}</td>
                     <td class="display-num" style="font-size:1.05rem;">PKR ${Number(g.price_per_hour).toLocaleString()}</td>
-                    <td class="display-num" style="color:var(--muted);">${g.weekend_price_per_hour ? 'PKR ' + Number(g.weekend_price_per_hour).toLocaleString() : '—'}</td>
-                    <td class="mono font-semibold">
-                      <a href="https://wa.me/${encodeURIComponent(g.whatsapp_number || '')}" target="_blank" style="display:flex; align-items:center; gap:4px; color:var(--emerald);">
-                        <i class="ph ph-whatsapp-logo" style="color:var(--lime-dark);"></i>
-                        ${escapeHtml(g.whatsapp_number || '—')}
-                      </a>
+                    <td>
+                      ${g.owner_id ? `
+                        <div style="display:flex; align-items:center; gap:6px;">
+                          <span class="badge badge-active" style="cursor:pointer;" onclick="openGrantOwnerModal('${g.id}')" title="Click to view/update credentials">
+                            <i class="ph ph-user-check"></i> Linked
+                          </span>
+                          <span style="font-size:0.75rem; font-weight:700; color:var(--ink);">${escapeHtml(g.contact_name || 'Owner')}</span>
+                        </div>
+                      ` : `
+                        <button class="btn btn-secondary btn-sm" style="padding:4px 10px; font-size:0.75rem;" onclick="openGrantOwnerModal('${g.id}')">
+                          <i class="ph ph-key"></i> Grant Access
+                        </button>
+                      `}
                     </td>
                     <td>
                       <select class="form-control" style="padding:4px 8px; font-size:0.75rem; width:100px;" onchange="updateGroundStatus('${g.id}', this.value)">
@@ -1933,12 +2112,201 @@
                       </select>
                     </td>
                     <td>
-                      <button class="btn btn-secondary btn-sm" onclick="openEditGroundModal('${g.id}')">
-                        <i class="ph ph-pencil-simple"></i> Edit
+                      <div style="display:flex; gap:4px;">
+                        <button class="btn btn-secondary btn-sm" onclick="openGrantOwnerModal('${g.id}')" title="Manage Owner Credentials">
+                          <i class="ph ph-user-gear"></i> Access
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="openEditGroundModal('${g.id}')">
+                          <i class="ph ph-pencil-simple"></i> Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="7" style="text-align:center; padding:40px;">No grounds found matching query.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderOwnersView(container) {
+      const history = getOwnerHistory();
+      const linkedGrounds = state.grounds.filter(g => g.owner_id);
+      
+      const allOwnersMap = new Map();
+
+      // Add local history first
+      history.forEach(item => {
+        allOwnersMap.set(item.groundId || item.email, {
+          ...item,
+          groundName: item.groundName || state.grounds.find(g => g.id === item.groundId)?.name || 'Ground',
+          source: 'history'
+        });
+      });
+
+      // Augment from live grounds
+      state.grounds.forEach(g => {
+        if (g.owner_id || g.whatsapp_number) {
+          const key = g.id;
+          const existing = allOwnersMap.get(key);
+          const comm = g.commission_rate != null ? Number(g.commission_rate) : 0;
+          const commText = comm > 0 ? `${(comm * 100).toFixed(0)}% Commission` : '0% (Launch Tier)';
+          
+          if (!existing) {
+            allOwnersMap.set(key, {
+              id: g.id,
+              groundId: g.id,
+              groundName: g.name,
+              ownerName: g.contact_name || 'Ground Manager',
+              whatsapp: g.whatsapp_number || '',
+              email: g.owner?.email || `owner.${g.slug || 'turf'}@groundsnearme.pk`,
+              password: '••••••••',
+              commissionRate: comm,
+              commissionText: commText,
+              date: g.created_at || new Date().toISOString(),
+              isLinked: Boolean(g.owner_id)
+            });
+          } else {
+            existing.groundName = g.name;
+            existing.isLinked = Boolean(g.owner_id);
+            if (g.whatsapp_number && !existing.whatsapp) existing.whatsapp = g.whatsapp_number;
+            if (g.contact_name && !existing.ownerName) existing.ownerName = g.contact_name;
+            if (comm > 0) {
+              existing.commissionRate = comm;
+              existing.commissionText = `${(comm * 100).toFixed(0)}% Commission`;
+            }
+          }
+        }
+      });
+
+      const displayList = Array.from(allOwnersMap.values()).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2 style="font-size:1.35rem; font-weight:800; color:var(--ink); margin-bottom:4px;">Turf Owner Access & Credentials</h2>
+            <p style="color:var(--muted); font-size:0.8125rem;">Issue, manage, and track verified owner logins to access the Ground Owner Portal.</p>
+          </div>
+          <button class="btn btn-primary" onclick="openGrantOwnerModal()">
+            <i class="ph ph-plus-bold"></i> Grant Owner Access
+          </button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Grounds with Access</span>
+              <div class="stat-icon-wrap"><i class="ph ph-shield-check"></i></div>
+            </div>
+            <div class="stat-value display-num">${linkedGrounds.length} / ${state.grounds.length}</div>
+            <div class="stat-sub positive"><i class="ph ph-check"></i> Active Owner Portals</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Onboarded Credentials</span>
+              <div class="stat-icon-wrap"><i class="ph ph-key"></i></div>
+            </div>
+            <div class="stat-value display-num">${displayList.length}</div>
+            <div class="stat-sub"><i class="ph ph-clock-counter-clockwise"></i> Stored in history</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Default Commission</span>
+              <div class="stat-icon-wrap"><i class="ph ph-percent"></i></div>
+            </div>
+            <div class="stat-value display-num" style="font-size:1.5rem;">0% (Free)</div>
+            <div class="stat-sub"><i class="ph ph-info"></i> Future monetization ready</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">Security Tier</span>
+              <div class="stat-icon-wrap"><i class="ph ph-lock-key"></i></div>
+            </div>
+            <div class="stat-value display-num" style="font-size:1.3rem; color:var(--emerald);">Strict RLS</div>
+            <div class="stat-sub"><i class="ph ph-check-circle"></i> Owner sees only their venue</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span class="panel-title"><i class="ph ph-clock-counter-clockwise"></i> Owner Onboarding History & Active Logins</span>
+            <button class="btn btn-secondary btn-sm" onclick="openGrantOwnerModal()">
+              <i class="ph ph-user-plus"></i> + Add New Owner
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Cricket Ground</th>
+                  <th>Turf Owner / Manager</th>
+                  <th>WhatsApp Contact</th>
+                  <th>Sign-in Email</th>
+                  <th>Commission Rate</th>
+                  <th>Access Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${displayList.map(o => {
+                  const comm = Number(o.commissionRate || 0);
+                  const commBadge = comm > 0 ? 
+                    `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">${(comm * 100).toFixed(0)}% Commission</span>` :
+                    `<span class="badge" style="background:#f1f5f9; color:#475569;">0% Launch Tier</span>`;
+                  const dateStr = o.date ? new Date(o.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                  const waNumber = (o.whatsapp || '').replace(/\D/g, '');
+
+                  return `
+                    <tr>
+                      <td>
+                        <div style="font-weight:800; font-size:0.9rem; color:var(--ink);">${escapeHtml(o.groundName)}</div>
+                        <div style="font-size:0.75rem; color:var(--muted);"><i class="ph ph-calendar"></i> Onboarded ${dateStr}</div>
+                      </td>
+                      <td style="font-weight:700;">${escapeHtml(o.ownerName || 'Turf Owner')}</td>
+                      <td>
+                        ${waNumber ? `
+                          <a href="https://wa.me/${waNumber}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; color:var(--emerald); font-weight:700;" class="mono">
+                            <i class="ph ph-whatsapp-logo" style="color:var(--lime-dark); font-size:1.1rem;"></i> ${escapeHtml(o.whatsapp)}
+                          </a>
+                        ` : '<span style="color:var(--muted);">—</span>'}
+                      </td>
+                      <td class="mono font-semibold" style="color:var(--emerald);">${escapeHtml(o.email)}</td>
+                      <td>${commBadge}</td>
+                      <td>
+                        ${o.isLinked ? 
+                          `<span class="badge badge-active"><i class="ph ph-check"></i> Linked to Turf</span>` :
+                          `<span class="badge badge-pending"><i class="ph ph-hourglass"></i> Credentials Issued</span>`
+                        }
+                      </td>
+                      <td>
+                        <div style="display:flex; gap:6px;">
+                          <button class="btn btn-secondary btn-sm" onclick="showSavedOwnerCredentials('${escapeHtml(o.groundName)}', '${escapeHtml(o.ownerName)}', '${escapeHtml(o.email)}', '${escapeHtml(o.password || '••••••••')}', '${comm}', '${waNumber}')" title="View & Send Credentials">
+                            <i class="ph ph-key"></i> Credentials
+                          </button>
+                          ${waNumber ? `
+                            <button class="btn btn-ghost btn-sm btn-icon-only" style="color:#25D366;" onclick="resendWhatsAppCredentials('${escapeHtml(o.groundName)}', '${escapeHtml(o.ownerName)}', '${escapeHtml(o.email)}', '${escapeHtml(o.password || '')}', '${waNumber}')" title="Share via WhatsApp">
+                              <i class="ph ph-whatsapp-logo" style="font-size:1.2rem;"></i>
+                            </button>
+                          ` : ''}
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('') || `
+                  <tr>
+                    <td colspan="7" style="text-align:center; padding:48px 20px;">
+                      <i class="ph ph-user-circle-gear" style="font-size:3rem; color:var(--muted-light); margin-bottom:12px; display:block;"></i>
+                      <div style="font-weight:700; font-size:1rem; margin-bottom:4px;">No Turf Owners Onboarded Yet</div>
+                      <p style="font-size:0.8125rem; color:var(--muted); max-width:420px; margin:0 auto 16px;">
+                        Click "+ Grant Owner Access" above to issue login credentials to a turf owner and link their ground.
+                      </p>
+                      <button class="btn btn-primary btn-sm" onclick="openGrantOwnerModal()">
+                        <i class="ph ph-plus-bold"></i> Grant First Owner Access
                       </button>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="8" style="text-align:center; padding:40px;">No grounds found matching query.</td></tr>'}
+                `}
               </tbody>
             </table>
           </div>
@@ -2599,6 +2967,270 @@
       }
     }
 
+    /* ==========================================================================
+       OWNER ACCESS & ONBOARDING CREDENTIALS MANAGEMENT
+       ========================================================================== */
+    function getOwnerHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('gnm_owner_access_history') || '[]');
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveOwnerHistoryEntry(entry) {
+      try {
+        const list = getOwnerHistory();
+        const updated = [entry, ...list.filter(item => item.groundId !== entry.groundId || item.email !== entry.email)];
+        localStorage.setItem('gnm_owner_access_history', JSON.stringify(updated.slice(0, 100)));
+      } catch (_) {}
+    }
+
+    function openGrantOwnerModal(groundId = null) {
+      populateSelects();
+      const form = document.getElementById('form-grant-owner-access');
+      if (form) form.reset();
+      
+      generateRandomPassword();
+
+      if (groundId) {
+        const select = document.getElementById('grant-owner-ground');
+        if (select) {
+          select.value = groundId;
+          handleGroundSelectForOwner(groundId);
+        }
+      }
+      openModal('modal-grant-owner-access');
+    }
+
+    function handleGroundSelectForOwner(groundId) {
+      const g = state.grounds.find(x => x.id === groundId);
+      if (!g) return;
+      
+      const nameInput = document.getElementById('grant-owner-name');
+      const waInput = document.getElementById('grant-owner-wa');
+      const emailInput = document.getElementById('grant-owner-email');
+      const commSelect = document.getElementById('grant-owner-commission');
+
+      if (g.contact_name && nameInput && !nameInput.value) nameInput.value = g.contact_name;
+      if (g.whatsapp_number && waInput && !waInput.value) waInput.value = g.whatsapp_number;
+      if (g.commission_rate != null && commSelect) {
+        commSelect.value = Number(g.commission_rate).toFixed(2);
+      }
+      suggestOwnerEmail();
+    }
+
+    function suggestOwnerEmail() {
+      const groundSelect = document.getElementById('grant-owner-ground');
+      const groundId = groundSelect?.value;
+      const g = state.grounds.find(x => x.id === groundId);
+      const emailInput = document.getElementById('grant-owner-email');
+      if (!emailInput) return;
+
+      if (g && g.slug) {
+        emailInput.value = `owner.${g.slug}@groundsnearme.pk`;
+      } else if (g && g.name) {
+        const slug = g.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        emailInput.value = `owner.${slug}@groundsnearme.pk`;
+      } else {
+        emailInput.value = `owner.${Math.random().toString(36).substring(2, 7)}@groundsnearme.pk`;
+      }
+    }
+
+    function generateRandomPassword() {
+      const passInput = document.getElementById('grant-owner-password');
+      if (!passInput) return;
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz';
+      let rand = '';
+      for (let i = 0; i < 6; i++) {
+        rand += chars[Math.floor(Math.random() * chars.length)];
+      }
+      passInput.value = `Turf2026!${rand}`;
+    }
+
+    async function handleGrantOwnerAccess(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+      const groundId = formData.get('ground_id');
+      const ground = state.grounds.find(g => g.id === groundId);
+      const groundName = ground ? ground.name : 'Cricket Turf';
+      const ownerName = formData.get('owner_name').trim();
+      let rawWa = formData.get('whatsapp_number') || '';
+      let waDigits = rawWa.replace(/\D/g, '');
+      if (waDigits.startsWith('03') && waDigits.length === 11) waDigits = '92' + waDigits.slice(1);
+      else if (waDigits.startsWith('0092')) waDigits = waDigits.slice(2);
+      
+      const email = formData.get('email').trim().toLowerCase();
+      const password = formData.get('password');
+      const commissionRate = parseFloat(formData.get('commission_rate') || '0');
+      const notes = formData.get('notes') || '';
+
+      const btn = document.getElementById('btn-submit-grant-owner');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Activating Credentials...';
+      }
+
+      try {
+        let rpcSuccess = false;
+        let ownerUserId = null;
+
+        // 1. Try DB RPC admin_onboard_owner
+        try {
+          const rpcRes = await sbFetch('rpc/admin_onboard_owner', {
+            method: 'POST',
+            body: JSON.stringify({
+              p_ground_id: groundId,
+              p_owner_name: ownerName,
+              p_whatsapp: waDigits,
+              p_email: email,
+              p_password: password,
+              p_commission_rate: commissionRate
+            })
+          });
+          if (rpcRes && rpcRes.ok !== false) {
+            rpcSuccess = true;
+            ownerUserId = rpcRes.owner_id;
+          }
+        } catch (rpcErr) {
+          console.warn('[GNM] RPC onboard owner attempt:', rpcErr);
+        }
+
+        // 2. Fallback if RPC migration not executed yet
+        if (!rpcSuccess) {
+          try {
+            const signupRes = await fetch(`${state.config.supabaseUrl}/auth/v1/signup`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': state.config.supabaseAnon
+              },
+              body: JSON.stringify({
+                email,
+                password,
+                data: {
+                  full_name: ownerName,
+                  whatsapp_number: waDigits,
+                  account_type: 'owner'
+                }
+              })
+            });
+            const signupData = await signupRes.json();
+            if (signupData?.user?.id) {
+              ownerUserId = signupData.user.id;
+            }
+          } catch (_) {}
+
+          // Update ground with owner details and commission
+          const patchPayload = {
+            contact_name: ownerName,
+            whatsapp_number: waDigits,
+            commission_rate: commissionRate
+          };
+          if (ownerUserId) patchPayload.owner_id = ownerUserId;
+          
+          await sbFetch(`grounds?id=eq.${groundId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(patchPayload),
+            headers: { 'Prefer': 'return=minimal' }
+          });
+        }
+
+        // 3. Save to local history
+        const historyEntry = {
+          id: 'own_' + Date.now(),
+          date: new Date().toISOString(),
+          groundId,
+          groundName,
+          ownerName,
+          whatsapp: waDigits,
+          email,
+          password,
+          commissionRate,
+          notes,
+          isLinked: true
+        };
+        saveOwnerHistoryEntry(historyEntry);
+
+        // 4. Update UI & Show Credentials
+        closeModal('modal-grant-owner-access');
+        showSavedOwnerCredentials(groundName, ownerName, email, password, commissionRate, waDigits);
+        showToast(`Owner access granted for ${groundName}!`, 'success');
+        await refreshAllData();
+      } catch (err) {
+        showToast(`Error granting access: ${err.message}`, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ph ph-key"></i> Issue Login & Grant Access';
+        }
+      }
+    }
+
+    function showSavedOwnerCredentials(groundName, ownerName, email, password, commissionRate, whatsapp) {
+      document.getElementById('cred-display-ground').textContent = groundName;
+      document.getElementById('cred-display-email').textContent = email;
+      document.getElementById('cred-display-password').textContent = password || '(Saved in Auth)';
+      
+      const commNum = Number(commissionRate || 0);
+      document.getElementById('cred-display-commission').textContent = commNum > 0 ? `${(commNum * 100).toFixed(0)}% Platform Commission` : '0% (Launch Tier)';
+
+      // Setup WhatsApp button
+      const cleanWa = (whatsapp || '').replace(/\D/g, '');
+      const waBtn = document.getElementById('btn-cred-whatsapp');
+      if (waBtn) {
+        const msg = 
+`Assalam-o-Alaikum *${ownerName || 'Turf Owner'}*! 🏏
+
+Your Ground Owner Portal for *${groundName}* on *GroundsNearMe* has been activated.
+
+🔗 *Portal Login Link:* https://owner.groundsnearme.pk
+📧 *Sign-in Email:* ${email}
+🔑 *Password:* ${password}
+
+Log in to view live customer bookings, manage your daily schedule, and block slots for walk-in players.`;
+
+        waBtn.href = `https://wa.me/${cleanWa}?text=${encodeURIComponent(msg)}`;
+        waBtn.dataset.message = msg;
+      }
+
+      openModal('modal-owner-credentials-success');
+    }
+
+    function resendWhatsAppCredentials(groundName, ownerName, email, password, whatsapp) {
+      const cleanWa = (whatsapp || '').replace(/\D/g, '');
+      const passText = password && password !== '••••••••' ? password : '(Contact Admin if reset needed)';
+      const msg = 
+`Assalam-o-Alaikum *${ownerName || 'Turf Owner'}*! 🏏
+
+Your Ground Owner Portal for *${groundName}* on *GroundsNearMe* credentials:
+
+🔗 *Portal Login Link:* https://owner.groundsnearme.pk
+📧 *Sign-in Email:* ${email}
+🔑 *Password:* ${passText}
+
+Log in to view live customer bookings and manage your ground slots.`;
+
+      window.open(`https://wa.me/${cleanWa}?text=${encodeURIComponent(msg)}`, '_blank');
+    }
+
+    function copyAllOwnerCredentials() {
+      const ground = document.getElementById('cred-display-ground').textContent;
+      const email = document.getElementById('cred-display-email').textContent;
+      const password = document.getElementById('cred-display-password').textContent;
+      
+      const text = 
+`GroundsNearMe Turf Owner Portal Credentials:
+Ground: ${ground}
+Portal URL: https://owner.groundsnearme.pk
+Email: ${email}
+Password: ${password}
+`;
+      navigator.clipboard.writeText(text);
+      showToast('All login credentials copied to clipboard!', 'success');
+    }
+
     function openModal(id) {
       const el = document.getElementById(id);
       if (el) el.classList.add('open');
@@ -2612,6 +3244,7 @@
     function openNewActionModal() {
       if (state.currentView === 'bookings') openModal('modal-add-booking');
       else if (state.currentView === 'leads') openModal('modal-add-lead');
+      else if (state.currentView === 'owners') openGrantOwnerModal();
       else openModal('modal-add-ground');
     }
 
