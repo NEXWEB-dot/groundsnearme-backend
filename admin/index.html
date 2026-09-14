@@ -2601,6 +2601,11 @@
 
     async function handleCreateGround(e) {
       e.preventDefault();
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       const form = e.target;
       const formData = new FormData(form);
       const name = formData.get('name');
@@ -2633,7 +2638,11 @@
         form.reset();
         await refreshAllData();
       } catch (err) {
-        showToast(err.message, 'error');
+        if (err.message && err.message.includes('row-level security')) {
+          showToast('RLS Permission Error: Your account needs role = "superadmin" or "admin" in Supabase profiles. Run the SQL update in Supabase SQL editor.', 'error');
+        } else {
+          showToast(err.message, 'error');
+        }
       }
     }
 
@@ -2830,6 +2839,11 @@
 
     async function handleCreateLead(e) {
       e.preventDefault();
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       const form = e.target;
       const formData = new FormData(form);
       let rawWa = formData.get('whatsapp_number') || '';
@@ -2860,7 +2874,11 @@
         form.reset();
         await refreshAllData();
       } catch (err) {
-        showToast(err.message, 'error');
+        if (err.message && err.message.includes('row-level security')) {
+          showToast('RLS Permission Error: Your account needs role = "superadmin" or "admin" in Supabase profiles. Run the SQL update in Supabase SQL editor.', 'error');
+        } else {
+          showToast(err.message, 'error');
+        }
       }
     }
 
