@@ -3107,9 +3107,12 @@
               p_commission_rate: commissionRate
             })
           });
-          if (rpcRes && rpcRes.ok !== false) {
+          if (rpcRes && rpcRes.ok === true) {
             rpcSuccess = true;
             ownerUserId = rpcRes.owner_id;
+          } else if (rpcRes && rpcRes.error) {
+            console.warn('[GNM] admin_onboard_owner RPC error:', rpcRes.error);
+            // Fall through to signup fallback
           }
         } catch (rpcErr) {
           console.warn('[GNM] RPC onboard owner attempt:', rpcErr);
@@ -3117,6 +3120,7 @@
 
         // 2. Fallback if RPC migration not executed yet
         if (!rpcSuccess) {
+          let fallbackWarning = '';
           try {
             const signupRes = await fetch(`${state.config.supabaseUrl}/auth/v1/signup`, {
               method: 'POST',
@@ -3137,6 +3141,8 @@
             const signupData = await signupRes.json();
             if (signupData?.user?.id) {
               ownerUserId = signupData.user.id;
+            } else if (signupData?.error) {
+              fallbackWarning = signupData.error;
             }
           } catch (_) {}
 
@@ -3153,6 +3159,10 @@
             body: JSON.stringify(patchPayload),
             headers: { 'Prefer': 'return=minimal' }
           });
+
+          // ⚠️ Warn admin: DB migration not applied = owner must confirm email
+          const migrationWarning = `⚠️ DB migration not applied. Owner account created BUT requires email confirmation before they can log in. Run the migration SQL in Supabase SQL Editor, then use "Grant Access" again to fix this.${fallbackWarning ? ' Error: ' + fallbackWarning : ''}`;
+          setTimeout(() => showToast(migrationWarning, 'error'), 1500);
         }
 
         // 3. Save to local history
