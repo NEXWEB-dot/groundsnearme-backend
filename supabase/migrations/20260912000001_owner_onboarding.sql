@@ -99,7 +99,11 @@ begin
       raw_app_meta_data,
       raw_user_meta_data,
       created_at,
-      updated_at
+      updated_at,
+      confirmation_token,
+      recovery_token,
+      email_change_token_new,
+      email_change
     ) values (
       '00000000-0000-0000-0000-000000000000',
       v_user_id,
@@ -115,7 +119,11 @@ begin
         'account_type', 'owner'
       ),
       now(),
-      now()
+      now(),
+      '',
+      '',
+      '',
+      ''
     );
 
     -- Insert identity for password login
@@ -134,43 +142,26 @@ begin
         v_user_id,
         jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
         'email',
-        v_clean_email,
+        v_user_id::text,
         now(),
         now(),
         now()
-      );
+      )
+      on conflict (provider, provider_id) do update
+        set identity_data = jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+            updated_at = now();
     exception
-      when others then
-        begin
-          -- Fallback if provider_id requires user_id
-          insert into auth.identities (
-            id,
-            user_id,
-            identity_data,
-            provider,
-            provider_id,
-            last_sign_in_at,
-            created_at,
-            updated_at
-          ) values (
-            gen_random_uuid(),
-            v_user_id,
-            jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
-            'email',
-            v_user_id::text,
-            now(),
-            now(),
-            now()
-          );
-        exception
-          when others then null;
-        end;
+      when others then null;
     end;
   else
     -- Update existing user credentials and ensure email is confirmed
     update auth.users
        set encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')),
            email_confirmed_at = coalesce(email_confirmed_at, now()),
+           confirmation_token = coalesce(confirmation_token, ''),
+           recovery_token = coalesce(recovery_token, ''),
+           email_change_token_new = coalesce(email_change_token_new, ''),
+           email_change = coalesce(email_change, ''),
            raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object(
              'full_name', p_owner_name,
              'whatsapp_number', v_clean_wa,
@@ -195,7 +186,7 @@ begin
         v_user_id,
         jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
         'email',
-        v_clean_email,
+        v_user_id::text,
         now(),
         now(),
         now()
