@@ -24,9 +24,15 @@ declare
   v_clean_wa    text;
   v_clean_email text;
   v_comm        numeric(5,4);
+  v_caller_id   uuid;
+  v_caller_role public.user_role;
 begin
-  -- 1. Security check: Only staff (admin or superadmin) may onboard owners
-  if not public.is_staff() then
+  -- 1. Security check: staff (admin or superadmin), postgres superuser, or service_role
+  if not (
+    current_user in ('postgres', 'supabase_admin')
+    or coalesce(auth.role(), '') = 'service_role'
+    or public.is_staff()
+  ) then
     return jsonb_build_object(
       'ok', false,
       'error', 'Unauthorized: Only staff members can onboard turf owners.'
@@ -57,11 +63,17 @@ begin
     );
   end if;
 
+  -- Sanitize WhatsApp number
   v_clean_wa := regexp_replace(coalesce(p_whatsapp, ''), '[^0-9]', '', 'g');
   if v_clean_wa like '03%' and length(v_clean_wa) = 11 then
     v_clean_wa := '92' || substr(v_clean_wa, 2);
   elsif v_clean_wa like '0092%' then
     v_clean_wa := substr(v_clean_wa, 3);
+  end if;
+
+  -- Profiles whatsapp_number constraint check: null or between 10 and 15 digits
+  if length(v_clean_wa) < 10 or length(v_clean_wa) > 15 then
+    v_clean_wa := null;
   end if;
 
   v_comm := coalesce(p_commission_rate, 0);
@@ -103,6 +115,55 @@ begin
       now(),
       now()
     );
+
+    -- Insert identity for password login
+    begin
+      insert into auth.identities (
+        id,
+        user_id,
+        identity_data,
+        provider,
+        provider_id,
+        last_sign_in_at,
+        created_at,
+        updated_at
+      ) values (
+        v_user_id::text,
+        v_user_id,
+        jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+        'email',
+        v_clean_email,
+        now(),
+        now(),
+        now()
+      );
+    exception
+      when others then
+        begin
+          -- Fallback if provider_id requires user_id
+          insert into auth.identities (
+            id,
+            user_id,
+            identity_data,
+            provider,
+            provider_id,
+            last_sign_in_at,
+            created_at,
+            updated_at
+          ) values (
+            gen_random_uuid()::text,
+            v_user_id,
+            jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+            'email',
+            v_user_id::text,
+            now(),
+            now(),
+            now()
+          );
+        exception
+          when others then null;
+        end;
+    end;
   else
     -- Update existing user credentials and ensure email is confirmed
     update auth.users
@@ -115,6 +176,34 @@ begin
            ),
            updated_at = now()
      where id = v_user_id;
+
+    -- Ensure identity exists and is updated
+    begin
+      insert into auth.identities (
+        id,
+        user_id,
+        identity_data,
+        provider,
+        provider_id,
+        last_sign_in_at,
+        created_at,
+        updated_at
+      ) values (
+        v_user_id::text,
+        v_user_id,
+        jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+        'email',
+        v_clean_email,
+        now(),
+        now(),
+        now()
+      )
+      on conflict (provider, provider_id) do update
+        set identity_data = jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+            updated_at = now();
+    exception
+      when others then null;
+    end;
   end if;
 
   -- 4. Upsert public.profiles
@@ -122,14 +211,14 @@ begin
     id, role, full_name, email, whatsapp_number, is_active
   ) values (
     v_user_id,
-    'owner',
+    'owner'::public.user_role,
     p_owner_name,
     v_clean_email::extensions.citext,
-    nullif(v_clean_wa, ''),
+    v_clean_wa,
     true
   )
   on conflict (id) do update
-    set role = 'owner',
+    set role = 'owner'::public.user_role,
         full_name = coalesce(excluded.full_name, profiles.full_name),
         whatsapp_number = coalesce(excluded.whatsapp_number, profiles.whatsapp_number),
         is_active = true,
@@ -140,28 +229,34 @@ begin
      set owner_id = v_user_id,
          commission_rate = v_comm,
          contact_name = coalesce(p_owner_name, contact_name),
-         whatsapp_number = coalesce(nullif(v_clean_wa, ''), whatsapp_number),
+         whatsapp_number = coalesce(v_clean_wa, whatsapp_number),
          updated_at = now()
    where id = p_ground_id;
 
-  -- 6. Record in audit trail
-  insert into public.audit_log (
-    actor_id, actor_role, action, entity, entity_id, diff
-  ) values (
-    auth.uid(),
-    public.current_app_role(),
-    'onboard_owner',
-    'grounds',
-    p_ground_id::text,
-    jsonb_build_object(
-      'owner_id', v_user_id,
-      'owner_name', p_owner_name,
-      'email', v_clean_email,
-      'whatsapp', v_clean_wa,
-      'ground_name', v_ground_name,
-      'commission_rate', v_comm
-    )
-  );
+  -- 6. Record in audit trail (fail-safe)
+  begin
+    v_caller_id := auth.uid();
+    v_caller_role := public.current_app_role();
+    insert into public.audit_log (
+      actor_id, actor_role, action, entity, entity_id, diff
+    ) values (
+      v_caller_id,
+      v_caller_role,
+      'onboard_owner',
+      'grounds',
+      p_ground_id::text,
+      jsonb_build_object(
+        'owner_id', v_user_id,
+        'owner_name', p_owner_name,
+        'email', v_clean_email,
+        'whatsapp', v_clean_wa,
+        'ground_name', v_ground_name,
+        'commission_rate', v_comm
+      )
+    );
+  exception
+    when others then null;
+  end;
 
   return jsonb_build_object(
     'ok', true,
@@ -183,5 +278,5 @@ exception
 end;
 $$;
 
--- Grant execution to authenticated staff
-grant execute on function public.admin_onboard_owner(uuid, text, text, text, text, numeric) to authenticated, anon;
+-- Grant execution to authenticated, anon, service_role
+grant execute on function public.admin_onboard_owner(uuid, text, text, text, text, numeric) to authenticated, anon, service_role;

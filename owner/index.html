@@ -1004,7 +1004,7 @@
     };
 
     let state = {
-      session: JSON.parse(sessionStorage.getItem('gnm_owner_session') || 'null'),
+      session: JSON.parse(localStorage.getItem('gnm_owner_session') || sessionStorage.getItem('gnm_owner_session') || 'null'),
       grounds: [],
       currentGround: null,
       selectedDate: new Date().toISOString().split('T')[0],
@@ -1067,9 +1067,14 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error_description || data.message || 'Login failed');
+          const errDetail = data.error_description || data.msg || data.message || data.error || 'Login failed';
+          if (errDetail.toLowerCase().includes('email not confirmed')) {
+            throw new Error('Email not confirmed. Run email confirmation in Supabase SQL editor.');
+          }
+          throw new Error(errDetail);
         }
         state.session = data;
+        localStorage.setItem('gnm_owner_session', JSON.stringify(data));
         sessionStorage.setItem('gnm_owner_session', JSON.stringify(data));
         updateOwnerUI();
         closeModal('modal-owner-login');
@@ -1083,6 +1088,7 @@
 
     function signOutOwner() {
       state.session = null;
+      localStorage.removeItem('gnm_owner_session');
       sessionStorage.removeItem('gnm_owner_session');
       updateOwnerUI();
       closeModal('modal-owner-profile');

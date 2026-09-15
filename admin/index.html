@@ -1599,7 +1599,7 @@
 
     let state = {
       config: JSON.parse(localStorage.getItem('gnm_admin_cfg')) || DEFAULT_CONFIG,
-      session: JSON.parse(sessionStorage.getItem('gnm_staff_session') || 'null'),
+      session: JSON.parse(localStorage.getItem('gnm_staff_session') || sessionStorage.getItem('gnm_staff_session') || 'null'),
       currentView: 'overview',
       grounds: [],
       areas: [],
@@ -1691,6 +1691,7 @@
           throw new Error(data.error_description || data.message || 'Login failed');
         }
         state.session = data;
+        localStorage.setItem('gnm_staff_session', JSON.stringify(data));
         sessionStorage.setItem('gnm_staff_session', JSON.stringify(data));
         updateStaffUI();
         closeModal('modal-login');
@@ -1703,6 +1704,7 @@
 
     function signOutStaff() {
       state.session = null;
+      localStorage.removeItem('gnm_staff_session');
       sessionStorage.removeItem('gnm_staff_session');
       updateStaffUI();
       closeModal('modal-staff-profile');
@@ -3005,6 +3007,11 @@
     }
 
     function openGrantOwnerModal(groundId = null) {
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       populateSelects();
       const form = document.getElementById('form-grant-owner-access');
       if (form) form.reset();
@@ -3068,6 +3075,11 @@
 
     async function handleGrantOwnerAccess(e) {
       e.preventDefault();
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       const form = e.target;
       const formData = new FormData(form);
       const groundId = formData.get('ground_id');
@@ -3112,6 +3124,7 @@
             ownerUserId = rpcRes.owner_id;
           } else if (rpcRes && rpcRes.error) {
             console.warn('[GNM] admin_onboard_owner RPC error:', rpcRes.error);
+            showToast(`RPC notice: ${rpcRes.error}`, 'error');
             // Fall through to signup fallback
           }
         } catch (rpcErr) {
