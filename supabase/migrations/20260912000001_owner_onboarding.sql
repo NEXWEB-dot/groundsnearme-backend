@@ -5,6 +5,8 @@
 -- an audit trail of access grants.
 -- ============================================================================
 
+create extension if not exists pgcrypto with schema extensions;
+
 create or replace function public.admin_onboard_owner(
   p_ground_id        uuid,
   p_owner_name       text,
@@ -16,7 +18,7 @@ create or replace function public.admin_onboard_owner(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, auth, pg_temp
+set search_path = public, auth, extensions, pg_temp
 as $$
 declare
   v_user_id     uuid;
@@ -104,7 +106,7 @@ begin
       'authenticated',
       'authenticated',
       v_clean_email,
-      crypt(p_password, gen_salt('bf')),
+      extensions.crypt(p_password, extensions.gen_salt('bf')),
       now(),
       jsonb_build_object('provider', 'email', 'providers', array['email']),
       jsonb_build_object(
@@ -167,7 +169,7 @@ begin
   else
     -- Update existing user credentials and ensure email is confirmed
     update auth.users
-       set encrypted_password = crypt(p_password, gen_salt('bf')),
+       set encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')),
            email_confirmed_at = coalesce(email_confirmed_at, now()),
            raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object(
              'full_name', p_owner_name,
