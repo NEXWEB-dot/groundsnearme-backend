@@ -128,7 +128,7 @@ begin
         created_at,
         updated_at
       ) values (
-        v_user_id::text,
+        v_user_id,
         v_user_id,
         jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
         'email',
@@ -151,7 +151,7 @@ begin
             created_at,
             updated_at
           ) values (
-            gen_random_uuid()::text,
+            gen_random_uuid(),
             v_user_id,
             jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
             'email',
@@ -189,7 +189,7 @@ begin
         created_at,
         updated_at
       ) values (
-        v_user_id::text,
+        v_user_id,
         v_user_id,
         jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
         'email',
