@@ -1552,8 +1552,13 @@
     async function handleOwnerBooking(e) {
       e.preventDefault();
       const form = e.target;
-      const formData = new FormData(form);
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Blocking Slot...';
+      }
 
+      const formData = new FormData(form);
       const rate = state.currentGround.price_per_hour;
       const duration = parseInt(formData.get('duration_minutes'), 10);
       const totalAmount = (rate * duration) / 60;
@@ -1588,21 +1593,69 @@
         price_per_hour: rate,
         total_amount: totalAmount,
         currency: 'PKR',
-        confirmed_at: new Date().toISOString()
+        confirmed_at: new Date().toISOString(),
+        created_by: state.session?.user?.id || null
       };
 
       try {
-        await sbFetch('bookings', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-          headers: { 'Prefer': 'return=representation' }
-        });
+        let success = false;
+        // 1. Try create_manual_booking RPC
+        try {
+          const rpcRes = await sbFetch('rpc/create_manual_booking', {
+            method: 'POST',
+            body: JSON.stringify({
+              p_ground_id: state.currentGround.id,
+              p_booking_date: payload.booking_date,
+              p_start_time: payload.start_time,
+              p_end_time: payload.end_time,
+              p_contact_name: payload.contact_name,
+              p_contact_phone: payload.contact_phone,
+              p_notes: payload.notes,
+              p_source: 'owner',
+              p_confirmed: true
+            })
+          });
+          if (rpcRes && rpcRes.ok !== false) {
+            success = true;
+          } else if (rpcRes && rpcRes.error) {
+            const errObj = rpcRes.error;
+            const msg = typeof errObj === 'object' ? (errObj.message || errObj.code) : errObj;
+            throw new Error(msg || 'Slot could not be booked');
+          }
+        } catch (rpcErr) {
+          if (rpcErr.message && (rpcErr.message.includes('not found') || rpcErr.message.includes('404') || rpcErr.message.includes('could not find'))) {
+            success = false;
+          } else {
+            throw rpcErr;
+          }
+        }
+
+        // 2. Direct insert fallback
+        if (!success) {
+          await sbFetch('bookings', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Prefer': 'return=representation' }
+          });
+        }
+
         showToast(`Slot blocked for ${payload.contact_name}!`, 'success');
         closeModal('modal-manual-booking');
         form.reset();
         await refreshData();
       } catch (err) {
-        showToast(err.message, 'error');
+        if (err.message && err.message.includes('exclusion')) {
+          showToast('That slot already has an active booking.', 'error');
+        } else if (err.message && err.message.includes('row-level security')) {
+          showToast('RLS Error: Run the bookings RLS policy in Supabase SQL editor.', 'error');
+        } else {
+          showToast(`Error blocking slot: ${err.message}`, 'error');
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Confirm & Block Slot';
+        }
       }
     }
 
