@@ -9,6 +9,64 @@
 -- 6. Create get_guest_bookings: retrieve bookings by verified phone number
 -- ============================================================================
 
+-- Ensure pgcrypto extension
+create extension if not exists pgcrypto with schema extensions;
+
+-- Server-side rate limiting buckets
+create table if not exists public.auth_rate_limits (
+  id                bigserial primary key,
+  bucket_key        text not null,
+  action            text not null,
+  attempts          int not null default 1,
+  first_attempt_at  timestamptz not null default now(),
+  last_attempt_at   timestamptz not null default now(),
+  locked_until      timestamptz,
+  created_at        timestamptz not null default now(),
+  constraint auth_rate_limits_key_action unique (bucket_key, action)
+);
+
+create index if not exists auth_rate_limits_locked_idx 
+  on public.auth_rate_limits (bucket_key, action, locked_until);
+
+-- OTP management table: codes stored strictly as bcrypt/pgcrypto hashes
+create table if not exists public.auth_otps (
+  id             uuid primary key default gen_random_uuid(),
+  phone          text not null,
+  email          text,
+  otp_hash       text not null,
+  attempts_left  int not null default 5,
+  resend_count   int not null default 0,
+  last_sent_at   timestamptz not null default now(),
+  expires_at     timestamptz not null default (now() + interval '10 minutes'),
+  verified_at    timestamptz,
+  ip_address     text,
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists auth_otps_lookup_idx 
+  on public.auth_otps (phone, expires_at desc);
+
+-- Append-only auth security audit log
+create table if not exists public.auth_audit_log (
+  id          bigserial primary key,
+  event_type  text not null,
+  identifier  text,
+  ip_address  text,
+  user_agent  text,
+  metadata    jsonb,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists auth_audit_log_event_idx 
+  on public.auth_audit_log (event_type, created_at desc);
+create index if not exists auth_audit_log_ip_idx 
+  on public.auth_audit_log (ip_address, created_at desc);
+
+-- Enable RLS
+alter table public.auth_rate_limits enable row level security;
+alter table public.auth_otps enable row level security;
+alter table public.auth_audit_log enable row level security;
+
 -- 1. Extend bookings table
 alter table if exists public.bookings 
   add column if not exists phone_verified_at timestamptz default null;
