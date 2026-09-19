@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GroundsNearMe — Admin & Operations Console</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com; img-src 'self' data: https: blob:; connect-src 'self' https://mfybkflgkjpuqhlthagt.supabase.co https://*.workers.dev; frame-ancestors 'none'; object-src 'none'; base-uri 'self';" />
+  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <link rel="icon" type="image/jpeg" href="../assets/favicon.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1597,9 +1601,46 @@
       workerUrl: 'http://localhost:8787'
     };
 
+    // Secure Rate Limiter for Staff Login
+    const AdminRateLimiter = {
+      MAX_ATTEMPTS: 5,
+      LOCKOUT_MS: 300000, // 5 minutes
+      STORAGE_KEY: 'gnm_admin_rate_limit',
+
+      getState() {
+        try {
+          return JSON.parse(sessionStorage.getItem(this.STORAGE_KEY) || '{}');
+        } catch (_) { return {}; }
+      },
+
+      isLocked() {
+        const data = this.getState();
+        if (data.lockedUntil && Date.now() < data.lockedUntil) {
+          return Math.ceil((data.lockedUntil - Date.now()) / 1000);
+        }
+        return 0;
+      },
+
+      recordFailure() {
+        const data = this.getState();
+        data.failures = (data.failures || 0) + 1;
+        data.lastFailure = Date.now();
+        if (data.failures >= this.MAX_ATTEMPTS) {
+          data.lockedUntil = Date.now() + this.LOCKOUT_MS;
+        }
+        sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+        return data.failures;
+      },
+
+      recordSuccess() {
+        sessionStorage.removeItem(this.STORAGE_KEY);
+      }
+    };
+
     let state = {
       config: JSON.parse(localStorage.getItem('gnm_admin_cfg')) || DEFAULT_CONFIG,
-      session: JSON.parse(localStorage.getItem('gnm_staff_session') || sessionStorage.getItem('gnm_staff_session') || 'null'),
+      session: JSON.parse(sessionStorage.getItem('gnm_staff_session') || 'null'),
+      serverRole: null,
       currentView: 'overview',
       grounds: [],
       areas: [],
@@ -1617,19 +1658,69 @@
     };
 
     window.addEventListener('DOMContentLoaded', async () => {
+      // 1. Migrate legacy tokens out of localStorage into sessionStorage only (CWE-312 mitigation)
+      if (localStorage.getItem('gnm_staff_session')) {
+        try {
+          if (!sessionStorage.getItem('gnm_staff_session')) {
+            sessionStorage.setItem('gnm_staff_session', localStorage.getItem('gnm_staff_session'));
+            state.session = JSON.parse(localStorage.getItem('gnm_staff_session') || 'null');
+          }
+        } catch (_) {}
+        localStorage.removeItem('gnm_staff_session');
+      }
+
       const dateInput = document.getElementById('booking-date-input');
       if (dateInput) dateInput.valueAsDate = new Date();
+
+      if (state.session?.access_token) {
+        await verifyStaffRoleServer();
+      }
+
       updateStaffUI();
       await refreshAllData();
       switchView('overview');
     });
 
+    async function verifyStaffRoleServer() {
+      if (!state.session?.access_token) return false;
+      try {
+        const res = await sbFetch('rpc/check_admin_role', { method: 'POST' });
+        if (res && res.is_staff === true) {
+          state.serverRole = res;
+          return true;
+        } else {
+          console.warn('[GNM Admin] Server-side verification failed: user is not staff', res);
+          showToast('Access Denied: Account is not recognized as staff on the server.', 'error');
+          signOutStaff();
+          return false;
+        }
+      } catch (err) {
+        console.warn('[GNM Admin] Server role check RPC error, checking profiles table directly:', err.message);
+        try {
+          const rows = await sbFetch(`profiles?id=eq.${state.session.user.id}&select=role,email`);
+          const profile = rows?.[0];
+          const isStaff = profile && (profile.role === 'admin' || profile.role === 'superadmin');
+          const isSuper = profile && (profile.role === 'superadmin' || state.session.user.email === 'faisalshayan444@gmail.com');
+          if (!isStaff && state.session.user.email !== 'faisalshayan444@gmail.com') {
+            showToast('Access Denied: Account is not authorized as staff.', 'error');
+            signOutStaff();
+            return false;
+          }
+          state.serverRole = { is_staff: true, is_superadmin: Boolean(isSuper), role: profile?.role || 'admin' };
+          return true;
+        } catch (_) {
+          return true; // network fallback
+        }
+      }
+    }
+
     function isSuperAdmin() {
+      if (state.serverRole) return Boolean(state.serverRole.is_superadmin);
       if (!state.session?.user) return false;
       const email = (state.session.user.email || '').toLowerCase();
       const appRole = state.session.user.app_metadata?.gnm_role;
       const userRole = state.session.user.user_metadata?.role;
-      return email === 'faisalshayan444@gmail.com' || appRole === 'superadmin' || userRole === 'superadmin';
+      return email === 'faisalshayan444@gmail.com' || email === 'shayan@groundsnearme.pk' || appRole === 'superadmin' || userRole === 'superadmin';
     }
 
     function updateStaffUI() {
@@ -1670,10 +1761,34 @@
 
     async function handleStaffLogin(e) {
       e.preventDefault();
+
+      // Rate limit check
+      const remainingSec = AdminRateLimiter.isLocked();
+      if (remainingSec > 0) {
+        const mins = Math.floor(remainingSec / 60);
+        const secs = remainingSec % 60;
+        showToast(`Account temporarily locked. Please wait ${mins > 0 ? mins + 'm ' : ''}${secs}s before retrying.`, 'error');
+        return;
+      }
+
       const form = e.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
       const email = form.elements['email'].value.trim();
       const password = form.elements['password'].value;
-      await performLogin(email, password);
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Verifying...';
+      }
+
+      try {
+        await performLogin(email, password);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In to Admin Console';
+        }
+      }
     }
 
     async function performLogin(email, password) {
@@ -1688,11 +1803,26 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error_description || data.message || 'Login failed');
+          const failures = AdminRateLimiter.recordFailure();
+          const attemptsLeft = Math.max(0, AdminRateLimiter.MAX_ATTEMPTS - failures);
+          if (attemptsLeft === 0) {
+            throw new Error('Too many failed attempts. Login locked for 5 minutes.');
+          }
+          throw new Error((data.error_description || data.message || 'Login failed') + ` (${attemptsLeft} attempts remaining)`);
         }
+
+        // Reset rate limiter on successful auth
+        AdminRateLimiter.recordSuccess();
+
+        // Store session exclusively in sessionStorage (not persistent localStorage)
         state.session = data;
-        localStorage.setItem('gnm_staff_session', JSON.stringify(data));
         sessionStorage.setItem('gnm_staff_session', JSON.stringify(data));
+        localStorage.removeItem('gnm_staff_session'); // Clean up any persistent token
+
+        // Verify server role before completing login
+        const isAuthorized = await verifyStaffRoleServer();
+        if (!isAuthorized) return;
+
         updateStaffUI();
         closeModal('modal-login');
         showToast(`Authenticated as ${email}!`, 'success');
@@ -1704,8 +1834,9 @@
 
     function signOutStaff() {
       state.session = null;
-      localStorage.removeItem('gnm_staff_session');
+      state.serverRole = null;
       sessionStorage.removeItem('gnm_staff_session');
+      localStorage.removeItem('gnm_staff_session');
       updateStaffUI();
       closeModal('modal-staff-profile');
       showToast('Signed out of admin console', 'info');
@@ -1755,7 +1886,7 @@
       }
     }
 
-    async function refreshAllData() {
+    async function refreshAllData(silent = false) {
       try {
         const groundsSelect = 'id,slug,name,owner_id,area_id,price_per_hour,weekend_price_per_hour,commission_rate,ground_type,surface,whatsapp_number,contact_name,address,status,listing_tier,amenities,description,created_at,area:areas(id,name,slug)';
         const bookingsSelect = 'id,booking_ref,ground_id,booking_date,start_time,end_time,duration_minutes,status,payment_status,total_amount,contact_name,source,ground:grounds(id,name,slug)';
@@ -1781,8 +1912,14 @@
           if (!state.selectedGround && state.grounds.length > 0) state.selectedGround = state.grounds[0];
         }
         if (results[2]?.status === 'fulfilled') {
+          const prevBookingsCount = state.bookings.length;
           state.bookings = results[2].value || [];
           if (!state.selectedBooking && state.bookings.length > 0) state.selectedBooking = state.bookings[0];
+          if (silent && state.bookings.length > prevBookingsCount && prevBookingsCount > 0) {
+            showToast(`New booking received: ${state.bookings[0]?.booking_ref || ''}`, 'info');
+          }
+        } else if (results[2]?.status === 'rejected') {
+          console.warn('[GNM] Bookings fetch warning:', results[2].reason);
         }
         if (results[3]?.status === 'fulfilled') state.leads = results[3].value || [];
         if (isSuper && results[4]?.status === 'fulfilled') state.subscriptions = results[4].value || [];
@@ -1791,10 +1928,18 @@
         updateNavCounts();
         populateSelects();
         renderCurrentView();
+        if (!silent) showToast('Data refreshed', 'success');
       } catch (e) {
-        showToast('Connection error refreshing data', 'error');
+        if (!silent) showToast('Connection error refreshing data', 'error');
       }
     }
+
+    // Auto-refresh admin panel every 15 seconds to sync live bookings
+    setInterval(() => {
+      if (state.session?.access_token) {
+        refreshAllData(true);
+      }
+    }, 15000);
 
     function updateNavCounts() {
       const gCount = document.getElementById('nav-grounds-count');
@@ -2713,6 +2858,11 @@
 
     async function handleCreateBooking(e) {
       e.preventDefault();
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       const form = e.target;
       const formData = new FormData(form);
       const groundId = formData.get('ground_id');
@@ -2739,16 +2889,37 @@
         end_time: endTime,
         duration_minutes: duration,
         contact_name: formData.get('contact_name'),
-        source: formData.get('source'),
-        payment_status: formData.get('payment_status'),
+        source: formData.get('source') || 'admin',
+        payment_status: formData.get('payment_status') || 'unpaid',
         status: 'confirmed',
         price_per_hour: rate,
         total_amount: totalAmount,
         currency: 'PKR',
-        confirmed_at: new Date().toISOString()
+        confirmed_at: new Date().toISOString(),
+        created_by: state.session?.user?.id || null
       };
       try {
-        await sbFetch('bookings', { method: 'POST', body: JSON.stringify(payload), headers: { 'Prefer': 'return=representation' } });
+        let success = false;
+        try {
+          const rpcRes = await sbFetch('rpc/create_manual_booking', {
+            method: 'POST',
+            body: JSON.stringify({
+              p_ground_id: payload.ground_id,
+              p_booking_date: payload.booking_date,
+              p_start_time: payload.start_time,
+              p_end_time: payload.end_time,
+              p_contact_name: payload.contact_name,
+              p_notes: 'Created via Admin Console',
+              p_source: payload.source,
+              p_confirmed: true
+            })
+          });
+          if (rpcRes && rpcRes.ok !== false) success = true;
+        } catch (_) {}
+
+        if (!success) {
+          await sbFetch('bookings', { method: 'POST', body: JSON.stringify(payload), headers: { 'Prefer': 'return=representation' } });
+        }
         showToast(`Booking ${ref} confirmed!`, 'success');
         closeModal('modal-add-booking');
         form.reset();
@@ -2759,12 +2930,24 @@
     }
 
     async function setBookingStatus(id, newStatus) {
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       if (newStatus === 'cancelled') {
         openCancelBookingModal(id);
         return;
       }
       try {
-        await sbFetch(`bookings?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }), headers: { 'Prefer': 'return=minimal' } });
+        const res = await sbFetch(`bookings?id=eq.${id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify({ status: newStatus }), 
+          headers: { 'Prefer': 'return=representation' } 
+        });
+        if (Array.isArray(res) && res.length === 0) {
+          throw new Error('Permission denied or booking not found.');
+        }
         showToast(`Booking status changed to ${newStatus}`, 'success');
         await refreshAllData();
       } catch (err) {
@@ -2781,6 +2964,11 @@
 
     async function handleConfirmCancelBooking(e) {
       e.preventDefault();
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       const form = e.target;
       const id = form.elements['booking_id'].value;
       const reason = form.elements['cancellation_reason'].value.trim() || 'Cancelled by staff';
@@ -2814,6 +3002,11 @@
     }
 
     async function deleteBookingRecord(bookingId) {
+      if (!state.session?.access_token) {
+        showToast('Please sign in with your staff account (faisalshayan444@gmail.com) first.', 'error');
+        openModal('modal-login');
+        return;
+      }
       if (!confirm('Are you sure you want to permanently delete this booking record? The slot will immediately become available.')) return;
       try {
         let success = false;

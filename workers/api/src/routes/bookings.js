@@ -76,6 +76,61 @@ export async function createBooking(request, env, { ctx }) {
   return json({ booking: shapeBooking(env, payload) }, { status: 201 });
 }
 
+export async function createGuestBooking(request, env, { ctx }) {
+  await enforceRateLimit(request, env, ctx, { bucket: 'guest_booking', limit: 10, windowSeconds: 300 });
+
+  const body = await readJson(request);
+  const payload = unwrapRpc(
+    await sbRpc(
+      env,
+      'create_guest_booking',
+      {
+        p_ground_id:          uuid(body.ground_id, 'ground_id'),
+        p_booking_date:       isoDate(body.booking_date ?? body.date, 'booking_date'),
+        p_start_time:         clockTime(body.start_time, 'start_time'),
+        p_end_time:           clockTime(body.end_time, 'end_time'),
+        p_contact_name:       str(body.contact_name, 'contact_name', { min: 2, max: 100 }),
+        p_contact_phone:      str(body.contact_phone, 'contact_phone', { min: 10, max: 20 }),
+        p_email:              str(body.email, 'email', { required: false, max: 254 }),
+        p_notes:              str(body.notes, 'notes', { required: false, max: 500 }),
+        p_players_expected:   int(body.players_expected, 'players_expected', {
+          required: false, min: 1, max: 40,
+        }),
+        p_verification_token: body.verification_token ? uuid(body.verification_token, 'verification_token') : null,
+        p_save_info:          Boolean(body.save_info),
+        p_hold_minutes:       int(body.hold_minutes, 'hold_minutes', {
+          required: false, min: 5, max: 120,
+        }) ?? 30,
+      },
+      { token: ctx.token },
+    ),
+    'booking',
+  );
+
+  return json({ booking: shapeBooking(env, payload) }, { status: 201 });
+}
+
+export async function listGuestBookings(request, env) {
+  const url = new URL(request.url);
+  const phone = str(url.searchParams.get('phone'), 'phone', { min: 10, max: 20 });
+  const token = url.searchParams.get('token');
+
+  const res = await sbRpc(
+    env,
+    'get_guest_bookings',
+    {
+      p_phone: phone,
+      p_verification_token: token ? uuid(token, 'token') : null,
+    },
+  );
+
+  if (!res || res.ok === false) {
+    return json(res || { ok: false, message: 'Could not fetch guest bookings' }, { status: 400 });
+  }
+
+  return json(res, { status: 200 });
+}
+
 export async function listMyBookings(request, env, { ctx }) {
   const userId = requireUser(ctx);
   const q = new URL(request.url).searchParams;

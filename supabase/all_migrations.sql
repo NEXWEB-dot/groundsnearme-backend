@@ -3266,3 +3266,1407 @@ create policy bookings_delete_staff on public.bookings
 
 grant delete on public.bookings to authenticated;
 
+
+-- ============================================================================
+-- FILE: 20260918000001_admin_role_check.sql
+-- ============================================================================
+
+create or replace function public.check_admin_role()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id  uuid := auth.uid();
+  v_role     text;
+  v_email    text;
+  v_is_staff boolean := false;
+  v_is_super boolean := false;
+begin
+  if v_user_id is null then
+    return jsonb_build_object(
+      'authenticated', false,
+      'is_staff', false,
+      'is_superadmin', false,
+      'role', null,
+      'error', 'Not authenticated'
+    );
+  end if;
+
+  select p.role::text, coalesce(p.email::text, u.email)
+    into v_role, v_email
+    from auth.users u
+    left join public.profiles p on p.id = u.id
+   where u.id = v_user_id;
+
+  if v_role in ('admin', 'superadmin') then
+    v_is_staff := true;
+  end if;
+
+  -- Superadmin check
+  if v_role = 'superadmin' or lower(coalesce(v_email, '')) in ('faisalshayan444@gmail.com', 'shayan@groundsnearme.pk') then
+    v_is_super := true;
+    v_is_staff := true;
+  end if;
+
+  return jsonb_build_object(
+    'authenticated', true,
+    'is_staff', v_is_staff,
+    'is_superadmin', v_is_super,
+    'role', coalesce(v_role, 'player'),
+    'user_id', v_user_id,
+    'email', v_email
+  );
+end;
+$$;
+
+grant execute on function public.check_admin_role() to authenticated;
+grant execute on function public.is_staff() to authenticated;
+grant execute on function public.is_superadmin() to authenticated;
+
+
+-- ============================================================================
+-- FILE: 20260918000002_matchmaking_booking_guard.sql
+-- ============================================================================
+
+alter table public.open_games
+  add column if not exists booking_ref text,
+  add column if not exists booking_id uuid references public.bookings(id) on delete set null;
+
+create index if not exists open_games_booking_ref_idx on public.open_games(booking_ref);
+create index if not exists open_games_booking_id_idx on public.open_games(booking_id);
+
+create or replace function public.create_open_game(
+  p_title          text,
+  p_match_date     date,
+  p_looking_for    text default 'players',
+  p_skill_level    text default 'any',
+  p_players_needed int  default null,
+  p_start_time     time default null,
+  p_format         text default null,
+  p_ground_id      uuid default null,
+  p_area_id        uuid default null,
+  p_notes          text default null,
+  p_booking_ref    text default null,
+  p_booking_id     uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user      uuid := auth.uid();
+  v_handle    text;
+  v_wa        text;
+  v_booking   record;
+  v_ground_id uuid := p_ground_id;
+  v_area_id   uuid := p_area_id;
+  v_row       public.open_games;
+begin
+  if v_user is null then
+    return jsonb_build_object('ok', false, 'error',
+      jsonb_build_object('code', 'AUTH_REQUIRED', 'message', 'Sign in to post a game.'));
+  end if;
+
+  if p_booking_id is not null or p_booking_ref is not null then
+    select b.id, b.booking_ref, b.ground_id, b.booking_date, b.start_time, b.status, g.area_id
+      into v_booking
+      from public.bookings b
+      left join public.grounds g on g.id = b.ground_id
+     where (p_booking_id is not null and b.id = p_booking_id)
+        or (p_booking_ref is not null and b.booking_ref = p_booking_ref)
+     limit 1;
+
+    if v_booking.id is null then
+      return jsonb_build_object('ok', false, 'error',
+        jsonb_build_object('code', 'INVALID_BOOKING', 'message', 'Specified booking was not found.'));
+    end if;
+
+    if v_booking.status in ('cancelled', 'expired') then
+      return jsonb_build_object('ok', false, 'error',
+        jsonb_build_object('code', 'BOOKING_INACTIVE', 'message', 'Match cannot be posted for a cancelled or expired booking.'));
+    end if;
+
+    v_ground_id  := v_booking.ground_id;
+    p_match_date := v_booking.booking_date;
+    if p_start_time is null then
+      p_start_time := v_booking.start_time;
+    end if;
+    if v_booking.area_id is not null then
+      v_area_id := v_booking.area_id;
+    end if;
+  else
+    return jsonb_build_object('ok', false, 'error',
+      jsonb_build_object('code', 'BOOKING_REQUIRED', 'message', 'Match postings are exclusively available for confirmed ground bookings. Please book a ground slot first.'));
+  end if;
+
+  if p_looking_for not in ('players','opposition') then p_looking_for := 'players'; end if;
+  if p_skill_level not in ('beginner','intermediate','advanced','any') then p_skill_level := 'any'; end if;
+
+  if p_looking_for = 'players' and coalesce(p_players_needed, 0) < 1 then
+    return jsonb_build_object('ok', false, 'error',
+      jsonb_build_object('code', 'PLAYERS_NEEDED_REQUIRED',
+        'message', 'Say how many players you need.'));
+  end if;
+
+  if p_match_date < (now() at time zone 'Asia/Karachi')::date then
+    return jsonb_build_object('ok', false, 'error',
+      jsonb_build_object('code', 'DATE_IN_PAST', 'message', 'Pick a future date.'));
+  end if;
+
+  select coalesce(pr.handle::text, 'player_' || substr(v_user::text, 1, 6)), pr.whatsapp_number
+    into v_handle, v_wa
+    from public.profiles pr where pr.id = v_user;
+
+  if (select count(*) from public.open_games
+       where host_id = v_user and created_at > now() - interval '1 day') >= 5 then
+    return jsonb_build_object('ok', false, 'error',
+      jsonb_build_object('code', 'RATE_LIMITED', 'message', 'Too many posts today.'));
+  end if;
+
+  insert into public.open_games (
+    host_id, host_handle, title, looking_for, skill_level, format, ground_id,
+    area_id, match_date, start_time, players_needed, notes, whatsapp_number,
+    booking_ref, booking_id
+  )
+  values (
+    v_user, v_handle, trim(p_title), p_looking_for::public.looking_for,
+    p_skill_level::public.skill_level, nullif(trim(coalesce(p_format, '')), ''),
+    v_ground_id, v_area_id, p_match_date, p_start_time, p_players_needed,
+    nullif(trim(coalesce(p_notes, '')), ''), v_wa,
+    v_booking.booking_ref, v_booking.id
+  )
+  returning * into v_row;
+
+  return jsonb_build_object('ok', true, 'game', to_jsonb(v_row));
+end;
+$$;
+
+grant execute on function public.create_open_game(
+  text, date, text, text, int, time, text, uuid, uuid, text, text, uuid
+) to authenticated;
+
+
+-- ============================================================================
+-- FILE: 20260919000001_auth_security_hardening.sql
+-- ============================================================================
+
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.auth_rate_limits (
+  id                bigserial primary key,
+  bucket_key        text not null,
+  action            text not null,
+  attempts          int not null default 1,
+  first_attempt_at  timestamptz not null default now(),
+  last_attempt_at   timestamptz not null default now(),
+  locked_until      timestamptz,
+  created_at        timestamptz not null default now(),
+  constraint auth_rate_limits_key_action unique (bucket_key, action)
+);
+
+create index if not exists auth_rate_limits_locked_idx 
+  on public.auth_rate_limits (bucket_key, action, locked_until);
+
+create table if not exists public.auth_otps (
+  id             uuid primary key default gen_random_uuid(),
+  phone          text not null,
+  email          text,
+  otp_hash       text not null,
+  attempts_left  int not null default 5,
+  resend_count   int not null default 0,
+  last_sent_at   timestamptz not null default now(),
+  expires_at     timestamptz not null default (now() + interval '10 minutes'),
+  verified_at    timestamptz,
+  ip_address     text,
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists auth_otps_lookup_idx 
+  on public.auth_otps (phone, expires_at desc);
+
+create table if not exists public.auth_audit_log (
+  id          bigserial primary key,
+  event_type  text not null,
+  identifier  text,
+  ip_address  text,
+  user_agent  text,
+  metadata    jsonb,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists auth_audit_log_event_idx 
+  on public.auth_audit_log (event_type, created_at desc);
+create index if not exists auth_audit_log_ip_idx 
+  on public.auth_audit_log (ip_address, created_at desc);
+
+alter table public.auth_rate_limits enable row level security;
+alter table public.auth_otps enable row level security;
+alter table public.auth_audit_log enable row level security;
+
+create or replace function public.validate_password_strength(p_password text)
+returns boolean
+language plpgsql
+immutable
+as $$
+begin
+  if p_password is null or char_length(p_password) < 8 then
+    return false;
+  end if;
+  if p_password !~ '[A-Z]' then return false; end if;
+  if p_password !~ '[a-z]' then return false; end if;
+  if p_password !~ '[0-9]' then return false; end if;
+  if p_password !~ '[^a-zA-Z0-9]' then return false; end if;
+  return true;
+end;
+$$;
+
+create or replace function public.request_signup_otp(
+  p_phone text,
+  p_email text default null,
+  p_ip    text default 'unknown'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_clean_phone   text;
+  v_clean_email   text;
+  v_ip_bucket     text;
+  v_phone_bucket  text;
+  v_ip_rec        record;
+  v_phone_rec     record;
+  v_last_otp      record;
+  v_cooldown_left int;
+  v_code          text;
+  v_hash          text;
+  v_prefix        text;
+  v_prefix_count  int;
+  v_ip_burst      int;
+begin
+  v_clean_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  if char_length(v_clean_phone) < 10 or char_length(v_clean_phone) > 15 then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'INVALID_PHONE',
+      'message', 'Please enter a valid mobile number (10 to 15 digits).'
+    );
+  end if;
+
+  v_clean_email := nullif(lower(trim(coalesce(p_email, ''))), '');
+  if v_clean_email is not null and (v_clean_email !~ '^[^@]+@[^@]+\.[^@]+$') then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'INVALID_EMAIL',
+      'message', 'Please enter a valid email address.'
+    );
+  end if;
+
+  -- 1. Pre-check duplicates before generating or sending OTP
+  if exists (
+    select 1 from auth.users u
+    where (u.phone is not null and regexp_replace(u.phone, '\D', '', 'g') = v_clean_phone)
+       or (v_clean_email is not null and u.email is not null and lower(u.email) = v_clean_email)
+  ) or exists (
+    select 1 from public.profiles p
+    where (p.phone is not null and regexp_replace(p.phone, '\D', '', 'g') = v_clean_phone)
+       or (v_clean_email is not null and p.email is not null and lower(p.email::text) = v_clean_email)
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'ACCOUNT_EXISTS',
+      'message', 'An account with these details already exists. Please log in.'
+    );
+  end if;
+
+  -- 2. Server-side rate limiting
+  v_ip_bucket := 'ip:' || coalesce(nullif(p_ip, ''), 'unknown');
+  select * into v_ip_rec from public.auth_rate_limits
+  where bucket_key = v_ip_bucket and action = 'signup_otp';
+
+  if found then
+    if v_ip_rec.locked_until is not null and v_ip_rec.locked_until > now() then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'RATE_LIMITED',
+        'retry_after', extract(epoch from (v_ip_rec.locked_until - now()))::int,
+        'message', 'Too many requests from this network. Please try again later.'
+      );
+    end if;
+
+    if now() - v_ip_rec.first_attempt_at < interval '15 minutes' then
+      if v_ip_rec.attempts >= 5 then
+        update public.auth_rate_limits
+        set locked_until = now() + interval '15 minutes', last_attempt_at = now()
+        where bucket_key = v_ip_bucket and action = 'signup_otp';
+
+        insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+        values ('rate_limit_exceeded', v_clean_phone, p_ip, jsonb_build_object('scope', 'ip', 'limit', 5));
+
+        return jsonb_build_object(
+          'ok', false,
+          'code', 'RATE_LIMITED',
+          'retry_after', 900,
+          'message', 'Too many requests from this network. Please wait 15 minutes.'
+        );
+      else
+        update public.auth_rate_limits
+        set attempts = attempts + 1, last_attempt_at = now()
+        where bucket_key = v_ip_bucket and action = 'signup_otp';
+      end if;
+    else
+      update public.auth_rate_limits
+      set attempts = 1, first_attempt_at = now(), last_attempt_at = now(), locked_until = null
+      where bucket_key = v_ip_bucket and action = 'signup_otp';
+    end if;
+  else
+    insert into public.auth_rate_limits (bucket_key, action, attempts, first_attempt_at, last_attempt_at)
+    values (v_ip_bucket, 'signup_otp', 1, now(), now());
+  end if;
+
+  v_phone_bucket := 'phone:' || v_clean_phone;
+  select * into v_phone_rec from public.auth_rate_limits
+  where bucket_key = v_phone_bucket and action = 'signup_otp';
+
+  if found then
+    if v_phone_rec.locked_until is not null and v_phone_rec.locked_until > now() then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'RATE_LIMITED',
+        'retry_after', extract(epoch from (v_phone_rec.locked_until - now()))::int,
+        'message', 'Too many verification attempts for this number. Please wait an hour.'
+      );
+    end if;
+
+    if now() - v_phone_rec.first_attempt_at < interval '1 hour' then
+      if v_phone_rec.attempts >= 3 then
+        update public.auth_rate_limits
+        set locked_until = now() + interval '1 hour', last_attempt_at = now()
+        where bucket_key = v_phone_bucket and action = 'signup_otp';
+
+        insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+        values ('rate_limit_exceeded', v_clean_phone, p_ip, jsonb_build_object('scope', 'phone', 'limit', 3));
+
+        return jsonb_build_object(
+          'ok', false,
+          'code', 'RATE_LIMITED',
+          'retry_after', 3600,
+          'message', 'Too many verification attempts for this number. Please wait an hour.'
+        );
+      else
+        update public.auth_rate_limits
+        set attempts = attempts + 1, last_attempt_at = now()
+        where bucket_key = v_phone_bucket and action = 'signup_otp';
+      end if;
+    else
+      update public.auth_rate_limits
+      set attempts = 1, first_attempt_at = now(), last_attempt_at = now(), locked_until = null
+      where bucket_key = v_phone_bucket and action = 'signup_otp';
+    end if;
+  else
+    insert into public.auth_rate_limits (bucket_key, action, attempts, first_attempt_at, last_attempt_at)
+    values (v_phone_bucket, 'signup_otp', 1, now(), now());
+  end if;
+
+  select * into v_last_otp from public.auth_otps
+  where phone = v_clean_phone and verified_at is null and expires_at > now()
+  order by created_at desc limit 1;
+
+  if found and (now() - v_last_otp.last_sent_at < interval '60 seconds') then
+    v_cooldown_left := extract(epoch from (v_last_otp.last_sent_at + interval '60 seconds' - now()))::int;
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'COOLDOWN_ACTIVE',
+      'retry_after', greatest(1, v_cooldown_left),
+      'message', 'Please wait ' || greatest(1, v_cooldown_left) || ' seconds before requesting another code.'
+    );
+  end if;
+
+  -- 3. Abuse pattern detection
+  select count(*) into v_ip_burst from public.auth_audit_log
+  where ip_address = p_ip and event_type = 'signup_otp_requested'
+    and created_at > (now() - interval '1 hour');
+
+  if v_ip_burst >= 10 then
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('abuse_flagged', v_clean_phone, p_ip, jsonb_build_object(
+      'reason', 'ip_burst_threshold_exceeded',
+      'burst_count', v_ip_burst
+    ));
+  end if;
+
+  if char_length(v_clean_phone) >= 4 then
+    v_prefix := substring(v_clean_phone from 1 for 4);
+    select count(*) into v_prefix_count from public.auth_otps
+    where phone like (v_prefix || '%') and created_at > (now() - interval '1 hour');
+
+    if v_prefix_count >= 20 then
+      insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+      values ('abuse_flagged', v_prefix || '****', p_ip, jsonb_build_object(
+        'reason', 'carrier_prefix_burst',
+        'prefix', v_prefix,
+        'count', v_prefix_count
+      ));
+    end if;
+  end if;
+
+  -- 4. Cryptographic salted hash & storage
+  delete from public.auth_otps
+  where phone = v_clean_phone and verified_at is null;
+
+  v_code := lpad((floor(random() * 900000) + 100000)::int::text, 6, '0');
+  v_hash := extensions.crypt(v_code, extensions.gen_salt('bf', 8));
+
+  insert into public.auth_otps (
+    phone, email, otp_hash, attempts_left, resend_count, last_sent_at, expires_at, ip_address
+  ) values (
+    v_clean_phone, v_clean_email, v_hash, 5, coalesce(v_last_otp.resend_count, 0) + 1, now(),
+    now() + interval '10 minutes', p_ip
+  );
+
+  insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+  values ('signup_otp_requested', 
+    substring(v_clean_phone from 1 for 4) || '••••' || substring(v_clean_phone from char_length(v_clean_phone) - 2),
+    p_ip,
+    jsonb_build_object('resend_count', coalesce(v_last_otp.resend_count, 0) + 1)
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'expires_in', 600,
+    'resend_cooldown', 60,
+    'delivery', 'sms'
+  );
+end;
+$$;
+
+create or replace function public.verify_signup_otp(
+  p_phone text,
+  p_code  text,
+  p_ip    text default 'unknown'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_clean_phone  text;
+  v_clean_code   text;
+  v_otp_rec      record;
+  v_attempts     int;
+begin
+  v_clean_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_clean_code  := trim(coalesce(p_code, ''));
+
+  if char_length(v_clean_code) <> 6 then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'INVALID_FORMAT',
+      'message', 'Please enter all 6 digits of the verification code.'
+    );
+  end if;
+
+  select * into v_otp_rec from public.auth_otps
+  where phone = v_clean_phone and verified_at is null
+  order by created_at desc limit 1;
+
+  if not found then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'OTP_NOT_FOUND',
+      'message', 'No active verification code found. Please request a new one.'
+    );
+  end if;
+
+  if v_otp_rec.expires_at < now() then
+    delete from public.auth_otps where id = v_otp_rec.id;
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'OTP_EXPIRED',
+      'message', 'Verification code has expired. Please request a new code.'
+    );
+  end if;
+
+  if v_otp_rec.attempts_left <= 0 then
+    delete from public.auth_otps where id = v_otp_rec.id;
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('otp_invalidated_exhausted', v_clean_phone, p_ip, jsonb_build_object('otp_id', v_otp_rec.id));
+
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'OTP_EXHAUSTED',
+      'message', 'Maximum verification attempts exceeded. Code invalidated. Please request a new code.'
+    );
+  end if;
+
+  v_attempts := v_otp_rec.attempts_left - 1;
+
+  if extensions.crypt(v_clean_code, v_otp_rec.otp_hash) = v_otp_rec.otp_hash then
+    delete from public.auth_otps where id = v_otp_rec.id;
+
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('otp_verify_success', v_clean_phone, p_ip, jsonb_build_object('phone', v_clean_phone));
+
+    return jsonb_build_object(
+      'ok', true,
+      'message', 'Phone verified successfully.'
+    );
+  else
+    if v_attempts <= 0 then
+      delete from public.auth_otps where id = v_otp_rec.id;
+      insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+      values ('otp_verify_failed_exhausted', v_clean_phone, p_ip, jsonb_build_object('phone', v_clean_phone));
+
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'OTP_EXHAUSTED',
+        'attempts_left', 0,
+        'message', 'Incorrect verification code. Maximum attempts exceeded. Code has been invalidated.'
+      );
+    else
+      update public.auth_otps
+      set attempts_left = v_attempts
+      where id = v_otp_rec.id;
+
+      insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+      values ('otp_verify_failed', v_clean_phone, p_ip, jsonb_build_object('attempts_left', v_attempts));
+
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'INVALID_OTP',
+        'attempts_left', v_attempts,
+        'message', 'Incorrect verification code. (' || v_attempts || ' attempt' || (case when v_attempts = 1 then '' else 's' end) || ' remaining)'
+      );
+    end if;
+  end if;
+end;
+$$;
+
+create or replace function public.record_login_attempt(
+  p_identifier text,
+  p_ip         text default 'unknown',
+  p_success    boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_bucket_id    text;
+  v_bucket_ip    text;
+  v_rec          record;
+  v_attempts     int;
+  v_lock_seconds int;
+begin
+  v_bucket_id := 'login_id:' || lower(trim(coalesce(p_identifier, '')));
+  v_bucket_ip := 'login_ip:' || coalesce(nullif(p_ip, ''), 'unknown');
+
+  if p_success then
+    delete from public.auth_rate_limits
+    where bucket_key in (v_bucket_id, v_bucket_ip) and action = 'login_attempt';
+
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('login_success', p_identifier, p_ip, jsonb_build_object('success', true));
+
+    return jsonb_build_object('ok', true, 'locked', false);
+  end if;
+
+  select * into v_rec from public.auth_rate_limits
+  where bucket_key = v_bucket_id and action = 'login_attempt';
+
+  if found then
+    if v_rec.locked_until is not null and v_rec.locked_until > now() then
+      v_lock_seconds := extract(epoch from (v_rec.locked_until - now()))::int;
+      return jsonb_build_object(
+        'ok', false,
+        'locked', true,
+        'retry_after', greatest(1, v_lock_seconds),
+        'attempts_left', 0,
+        'message', 'Account temporarily locked due to repeated failed attempts. Please try again in ' || ceil(v_lock_seconds / 60.0)::int || ' minutes.'
+      );
+    end if;
+
+    if now() - v_rec.first_attempt_at < interval '15 minutes' then
+      v_attempts := v_rec.attempts + 1;
+      if v_attempts >= 5 then
+        update public.auth_rate_limits
+        set attempts = v_attempts,
+            locked_until = now() + interval '15 minutes',
+            last_attempt_at = now()
+        where bucket_key = v_bucket_id and action = 'login_attempt';
+
+        insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+        values ('login_lockout', p_identifier, p_ip, jsonb_build_object('attempts', v_attempts, 'duration_mins', 15));
+
+        return jsonb_build_object(
+          'ok', false,
+          'locked', true,
+          'retry_after', 900,
+          'attempts_left', 0,
+          'message', 'Too many failed login attempts. Account temporarily locked for 15 minutes.'
+        );
+      else
+        update public.auth_rate_limits
+        set attempts = v_attempts, last_attempt_at = now()
+        where bucket_key = v_bucket_id and action = 'login_attempt';
+      end if;
+    else
+      v_attempts := 1;
+      update public.auth_rate_limits
+      set attempts = 1, first_attempt_at = now(), last_attempt_at = now(), locked_until = null
+      where bucket_key = v_bucket_id and action = 'login_attempt';
+    end if;
+  else
+    v_attempts := 1;
+    insert into public.auth_rate_limits (bucket_key, action, attempts, first_attempt_at, last_attempt_at)
+    values (v_bucket_id, 'login_attempt', 1, now(), now());
+  end if;
+
+  insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+  values ('login_failed', p_identifier, p_ip, jsonb_build_object('attempt', v_attempts, 'attempts_left', greatest(0, 5 - v_attempts)));
+
+  return jsonb_build_object(
+    'ok', false,
+    'locked', false,
+    'attempts_left', greatest(0, 5 - v_attempts),
+    'message', 'Invalid mobile number, email, or password.'
+  );
+end;
+$$;
+
+create or replace function public.check_login_lockout(
+  p_identifier text,
+  p_ip         text default 'unknown'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_bucket_id    text;
+  v_bucket_ip    text;
+  v_rec          record;
+  v_lock_seconds int;
+begin
+  v_bucket_id := 'login_id:' || lower(trim(coalesce(p_identifier, '')));
+  v_bucket_ip := 'login_ip:' || coalesce(nullif(p_ip, ''), 'unknown');
+
+  select * into v_rec from public.auth_rate_limits
+  where bucket_key in (v_bucket_id, v_bucket_ip)
+    and action = 'login_attempt'
+    and locked_until > now()
+  order by locked_until desc limit 1;
+
+  if found then
+    v_lock_seconds := extract(epoch from (v_rec.locked_until - now()))::int;
+    return jsonb_build_object(
+      'is_locked', true,
+      'retry_after', greatest(1, v_lock_seconds),
+      'message', 'Account temporarily locked. Try again in ' || ceil(v_lock_seconds / 60.0)::int || ' minutes.'
+    );
+  end if;
+
+  return jsonb_build_object('is_locked', false, 'retry_after', 0);
+end;
+$$;
+
+grant execute on function public.validate_password_strength(text) to anon, authenticated;
+grant execute on function public.request_signup_otp(text, text, text) to anon, authenticated;
+grant execute on function public.verify_signup_otp(text, text, text) to anon, authenticated;
+grant execute on function public.record_login_attempt(text, text, boolean) to anon, authenticated;
+grant execute on function public.check_login_lockout(text, text) to anon, authenticated;
+
+
+-- ============================================================================
+-- GroundsNearMe — 20260919000002 · Guest Booking & Phone Verification
+-- ============================================================================
+-- 1. Extend bookings table: add phone_verified_at column
+-- 2. Create guest_profiles table: phone-keyed profile with no password
+-- 3. Create request_booking_otp: OTP dispatch without duplicate rejection
+-- 4. Create verify_booking_otp: cryptographic verification issuing temporary token
+-- 5. Create create_guest_booking: verified guest booking creation with slot checks
+-- 6. Create get_guest_bookings: retrieve bookings by verified phone number
+-- ============================================================================
+
+-- 1. Extend bookings table
+alter table if exists public.bookings 
+  add column if not exists phone_verified_at timestamptz default null;
+
+-- 2. Guest profiles table (passwordless lightweight profile for faster re-booking)
+create table if not exists public.guest_profiles (
+  id             uuid primary key default gen_random_uuid(),
+  phone          text not null unique,               -- normalized digits
+  full_name      text not null,
+  email          text,
+  booking_count  int not null default 1,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists guest_profiles_phone_idx 
+  on public.guest_profiles (phone);
+
+alter table public.guest_profiles enable row level security;
+
+-- Only authenticated staff can view guest_profiles directly; anon interacts via RPCs
+create policy guest_profiles_staff_all on public.guest_profiles
+  for all to authenticated
+  using (public.is_staff())
+  with check (public.is_staff());
+
+-- ---------------------------------------------------------------------------
+-- 3. Request Booking OTP (No Duplicate Block, Server Rate Limit, 10m TTL)
+-- ---------------------------------------------------------------------------
+create or replace function public.request_booking_otp(
+  p_phone text,
+  p_email text default null,
+  p_ip    text default 'unknown'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_clean_phone   text;
+  v_clean_email   text;
+  v_ip_bucket     text;
+  v_phone_bucket  text;
+  v_ip_rec        record;
+  v_phone_rec     record;
+  v_last_otp      record;
+  v_cooldown_left int;
+  v_code          text;
+  v_hash          text;
+  v_prefix        text;
+  v_prefix_count  int;
+  v_ip_burst      int;
+  v_existing_name text;
+begin
+  -- Normalize inputs
+  v_clean_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  if char_length(v_clean_phone) < 10 or char_length(v_clean_phone) > 15 then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'INVALID_PHONE',
+      'message', 'Please enter a valid mobile number (10 to 15 digits).'
+    );
+  end if;
+
+  v_clean_email := nullif(lower(trim(coalesce(p_email, ''))), '');
+  if v_clean_email is not null and (v_clean_email !~ '^[^@]+@[^@]+\.[^@]+$') then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'INVALID_EMAIL',
+      'message', 'Please enter a valid email address.'
+    );
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- RATE LIMITING (Action: 'booking_otp')
+  -- -------------------------------------------------------------------------
+  -- A. IP Rate Limit: max 10 requests per 15 minutes
+  v_ip_bucket := 'ip:' || coalesce(nullif(p_ip, ''), 'unknown');
+  select * into v_ip_rec from public.auth_rate_limits
+  where bucket_key = v_ip_bucket and action = 'booking_otp';
+
+  if found then
+    if v_ip_rec.locked_until is not null and v_ip_rec.locked_until > now() then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'RATE_LIMITED',
+        'retry_after', extract(epoch from (v_ip_rec.locked_until - now()))::int,
+        'message', 'Too many verification attempts from this network. Please try again later.'
+      );
+    end if;
+
+    if now() - v_ip_rec.first_attempt_at < interval '15 minutes' then
+      if v_ip_rec.attempts >= 10 then
+        update public.auth_rate_limits
+        set locked_until = now() + interval '15 minutes', last_attempt_at = now()
+        where bucket_key = v_ip_bucket and action = 'booking_otp';
+
+        insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+        values ('rate_limit_exceeded', v_clean_phone, p_ip, jsonb_build_object('scope', 'ip', 'limit', 10, 'action', 'booking_otp'));
+
+        return jsonb_build_object(
+          'ok', false,
+          'code', 'RATE_LIMITED',
+          'retry_after', 900,
+          'message', 'Too many requests from this network. Please wait 15 minutes.'
+        );
+      else
+        update public.auth_rate_limits
+        set attempts = attempts + 1, last_attempt_at = now()
+        where bucket_key = v_ip_bucket and action = 'booking_otp';
+      end if;
+    else
+      update public.auth_rate_limits
+      set attempts = 1, first_attempt_at = now(), last_attempt_at = now(), locked_until = null
+      where bucket_key = v_ip_bucket and action = 'booking_otp';
+    end if;
+  else
+    insert into public.auth_rate_limits (bucket_key, action, attempts, first_attempt_at, last_attempt_at)
+    values (v_ip_bucket, 'booking_otp', 1, now(), now());
+  end if;
+
+  -- B. Phone Rate Limit: max 5 requests per 1 hour
+  v_phone_bucket := 'phone:' || v_clean_phone;
+  select * into v_phone_rec from public.auth_rate_limits
+  where bucket_key = v_phone_bucket and action = 'booking_otp';
+
+  if found then
+    if v_phone_rec.locked_until is not null and v_phone_rec.locked_until > now() then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'RATE_LIMITED',
+        'retry_after', extract(epoch from (v_phone_rec.locked_until - now()))::int,
+        'message', 'Too many verification attempts for this number. Please wait an hour.'
+      );
+    end if;
+
+    if now() - v_phone_rec.first_attempt_at < interval '1 hour' then
+      if v_phone_rec.attempts >= 5 then
+        update public.auth_rate_limits
+        set locked_until = now() + interval '1 hour', last_attempt_at = now()
+        where bucket_key = v_phone_bucket and action = 'booking_otp';
+
+        insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+        values ('rate_limit_exceeded', v_clean_phone, p_ip, jsonb_build_object('scope', 'phone', 'limit', 5, 'action', 'booking_otp'));
+
+        return jsonb_build_object(
+          'ok', false,
+          'code', 'RATE_LIMITED',
+          'retry_after', 3600,
+          'message', 'Too many verification attempts for this number. Please wait an hour.'
+        );
+      else
+        update public.auth_rate_limits
+        set attempts = attempts + 1, last_attempt_at = now()
+        where bucket_key = v_phone_bucket and action = 'booking_otp';
+      end if;
+    else
+      update public.auth_rate_limits
+      set attempts = 1, first_attempt_at = now(), last_attempt_at = now(), locked_until = null
+      where bucket_key = v_phone_bucket and action = 'booking_otp';
+    end if;
+  else
+    insert into public.auth_rate_limits (bucket_key, action, attempts, first_attempt_at, last_attempt_at)
+    values (v_phone_bucket, 'booking_otp', 1, now(), now());
+  end if;
+
+  -- C. 60-Second Resend Cooldown
+  select * into v_last_otp from public.auth_otps
+  where phone = v_clean_phone and verified_at is null and expires_at > now()
+  order by created_at desc limit 1;
+
+  if found and (now() - v_last_otp.last_sent_at < interval '60 seconds') then
+    v_cooldown_left := extract(epoch from (v_last_otp.last_sent_at + interval '60 seconds' - now()))::int;
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'COOLDOWN_ACTIVE',
+      'retry_after', greatest(1, v_cooldown_left),
+      'message', 'Please wait ' || greatest(1, v_cooldown_left) || ' seconds before requesting another code.'
+    );
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- ABUSE DETECTION & AUDIT LOGGING
+  -- -------------------------------------------------------------------------
+  select count(*) into v_ip_burst from public.auth_audit_log
+  where ip_address = p_ip and event_type = 'booking_otp_requested'
+    and created_at > (now() - interval '1 hour');
+
+  if v_ip_burst >= 15 then
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('abuse_flagged', v_clean_phone, p_ip, jsonb_build_object(
+      'reason', 'ip_burst_booking_threshold_exceeded',
+      'burst_count', v_ip_burst
+    ));
+  end if;
+
+  -- Check if guest profile exists to provide convenience
+  select full_name into v_existing_name from public.guest_profiles
+  where phone = v_clean_phone limit 1;
+
+  -- -------------------------------------------------------------------------
+  -- CRYPTOGRAPHIC OTP GENERATION
+  -- -------------------------------------------------------------------------
+  delete from public.auth_otps
+  where phone = v_clean_phone and verified_at is null;
+
+  v_code := lpad((floor(random() * 900000) + 100000)::int::text, 6, '0');
+  v_hash := extensions.crypt(v_code, extensions.gen_salt('bf', 8));
+
+  insert into public.auth_otps (
+    phone,
+    email,
+    otp_hash,
+    attempts_left,
+    resend_count,
+    last_sent_at,
+    expires_at,
+    ip_address
+  ) values (
+    v_clean_phone,
+    v_clean_email,
+    v_hash,
+    5,
+    coalesce(v_last_otp.resend_count, 0) + 1,
+    now(),
+    now() + interval '10 minutes',
+    p_ip
+  );
+
+  insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+  values ('booking_otp_requested',
+    substring(v_clean_phone from 1 for 4) || '••••' || substring(v_clean_phone from char_length(v_clean_phone) - 2),
+    p_ip,
+    jsonb_build_object('resend_count', coalesce(v_last_otp.resend_count, 0) + 1)
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'expires_in', 600,
+    'resend_cooldown', 60,
+    'saved_name', v_existing_name
+  );
+end;
+$$;
+
+grant execute on function public.request_booking_otp(text, text, text)
+  to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 4. Verify Booking OTP (Issues 15-min Verification Token)
+-- ---------------------------------------------------------------------------
+create or replace function public.verify_booking_otp(
+  p_phone text,
+  p_code  text,
+  p_ip    text default 'unknown'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_clean_phone  text;
+  v_clean_code   text;
+  v_otp_rec      record;
+  v_attempts     int;
+  v_token        uuid;
+begin
+  v_clean_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_clean_code  := trim(coalesce(p_code, ''));
+
+  if char_length(v_clean_code) <> 6 then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'INVALID_FORMAT',
+      'message', 'Please enter all 6 digits of the verification code.'
+    );
+  end if;
+
+  select * into v_otp_rec from public.auth_otps
+  where phone = v_clean_phone and verified_at is null
+  order by created_at desc limit 1;
+
+  if not found then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'OTP_NOT_FOUND',
+      'message', 'No active verification code found. Please request a new one.'
+    );
+  end if;
+
+  if v_otp_rec.expires_at < now() then
+    delete from public.auth_otps where id = v_otp_rec.id;
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'OTP_EXPIRED',
+      'message', 'Verification code has expired. Please request a new code.'
+    );
+  end if;
+
+  if v_otp_rec.attempts_left <= 0 then
+    delete from public.auth_otps where id = v_otp_rec.id;
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('booking_otp_exhausted', v_clean_phone, p_ip, jsonb_build_object('otp_id', v_otp_rec.id));
+
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'OTP_EXHAUSTED',
+      'message', 'Maximum verification attempts exceeded. Code invalidated. Please request a new code.'
+    );
+  end if;
+
+  v_attempts := v_otp_rec.attempts_left - 1;
+
+  if extensions.crypt(v_clean_code, v_otp_rec.otp_hash) = v_otp_rec.otp_hash then
+    -- CODE IS VALID: Set verified_at and return verification token (valid for 15 mins)
+    v_token := v_otp_rec.id;
+
+    update public.auth_otps
+    set verified_at = now()
+    where id = v_otp_rec.id;
+
+    insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+    values ('booking_otp_verified', v_clean_phone, p_ip, jsonb_build_object('phone', v_clean_phone));
+
+    return jsonb_build_object(
+      'ok', true,
+      'verification_token', v_token,
+      'message', 'Mobile number verified successfully.'
+    );
+  else
+    if v_attempts <= 0 then
+      delete from public.auth_otps where id = v_otp_rec.id;
+      insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+      values ('booking_otp_failed_exhausted', v_clean_phone, p_ip, jsonb_build_object('phone', v_clean_phone));
+
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'OTP_EXHAUSTED',
+        'attempts_left', 0,
+        'message', 'Incorrect verification code. Maximum attempts exceeded. Code has been invalidated.'
+      );
+    else
+      update public.auth_otps
+      set attempts_left = v_attempts
+      where id = v_otp_rec.id;
+
+      insert into public.auth_audit_log (event_type, identifier, ip_address, metadata)
+      values ('booking_otp_failed', v_clean_phone, p_ip, jsonb_build_object('attempts_left', v_attempts));
+
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'INVALID_OTP',
+        'attempts_left', v_attempts,
+        'message', 'Incorrect verification code. (' || v_attempts || ' attempt' || (case when v_attempts = 1 then '' else 's' end) || ' remaining)'
+      );
+    end if;
+  end if;
+end;
+$$;
+
+grant execute on function public.verify_booking_otp(text, text, text)
+  to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5. Create Guest Booking RPC (Verified Phone, Input Sanitization & Slot Check)
+-- ---------------------------------------------------------------------------
+create or replace function public.create_guest_booking(
+  p_ground_id          uuid,
+  p_booking_date       date,
+  p_start_time         time,
+  p_end_time           time,
+  p_contact_name       text,
+  p_contact_phone      text,
+  p_email              text default null,
+  p_notes              text default null,
+  p_players_expected   int  default null,
+  p_verification_token uuid default null,
+  p_save_info          boolean default false,
+  p_hold_minutes       int  default 30
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  g               record;
+  v_clean_phone   text;
+  v_clean_name    text;
+  v_clean_email   text;
+  v_clean_notes   text;
+  v_start_ts      timestamp;
+  v_end_ts        timestamp;
+  v_minutes       int;
+  v_expected      int;
+  v_total         int;
+  v_avail         int;
+  v_reason        text;
+  v_rate          integer;
+  v_amount        numeric(12,2);
+  v_hold          int := least(greatest(coalesce(p_hold_minutes, 30), 5), 180);
+  v_row           public.bookings;
+  v_token_valid   boolean := false;
+begin
+  -- Normalize & sanitize inputs
+  v_clean_phone := regexp_replace(coalesce(p_contact_phone, ''), '\D', '', 'g');
+  if char_length(v_clean_phone) < 10 or char_length(v_clean_phone) > 15 then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'INVALID_PHONE', 'message', 'Please provide a valid 10-15 digit mobile number.'));
+  end if;
+
+  -- Strip any potential script/HTML injection tags and limit lengths
+  v_clean_name := trim(regexp_replace(coalesce(p_contact_name, ''), '<[^>]*>', '', 'g'));
+  if char_length(v_clean_name) < 2 then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'INVALID_NAME', 'message', 'Please enter your full name.'));
+  end if;
+  if char_length(v_clean_name) > 100 then
+    v_clean_name := substring(v_clean_name from 1 for 100);
+  end if;
+
+  v_clean_email := nullif(lower(trim(coalesce(p_email, ''))), '');
+  if v_clean_email is not null and (v_clean_email !~ '^[^@]+@[^@]+\.[^@]+$') then
+    v_clean_email := null;
+  end if;
+
+  v_clean_notes := trim(regexp_replace(coalesce(p_notes, ''), '<[^>]*>', '', 'g'));
+  if char_length(v_clean_notes) > 500 then
+    v_clean_notes := substring(v_clean_notes from 1 for 500);
+  end if;
+  v_clean_notes := nullif(v_clean_notes, '');
+
+  -- -------------------------------------------------------------------------
+  -- VERIFY OTP TOKEN (Required for guest booking integrity)
+  -- -------------------------------------------------------------------------
+  if p_verification_token is not null then
+    select exists (
+      select 1 from public.auth_otps
+      where id = p_verification_token
+        and phone = v_clean_phone
+        and verified_at is not null
+        and verified_at > (now() - interval '15 minutes')
+    ) into v_token_valid;
+  end if;
+
+  -- Also check if verified within last 15 minutes by phone if token wasn't persisted
+  if not v_token_valid then
+    select exists (
+      select 1 from public.auth_otps
+      where phone = v_clean_phone
+        and verified_at is not null
+        and verified_at > (now() - interval '15 minutes')
+    ) into v_token_valid;
+  end if;
+
+  if not v_token_valid then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'VERIFICATION_REQUIRED',
+      'message', 'Please verify your mobile number with the SMS code before booking.'));
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- GROUND & AVAILABILITY CHECKS
+  -- -------------------------------------------------------------------------
+  select id, status, price_per_hour, weekend_price_per_hour, slot_duration_minutes,
+         min_booking_minutes, max_booking_minutes, commission_rate, currency
+    into g
+    from public.grounds
+   where id = p_ground_id;
+
+  if g.id is null or g.status <> 'active' then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'GROUND_NOT_AVAILABLE', 'message', 'This ground is not accepting bookings.'));
+  end if;
+
+  v_start_ts := p_booking_date + p_start_time;
+  v_end_ts   := (case when p_end_time <= p_start_time then p_booking_date + 1 else p_booking_date end)
+                + p_end_time;
+  v_minutes  := (extract(epoch from (v_end_ts - v_start_ts)) / 60)::int;
+
+  if v_minutes <= 0 then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'INVALID_TIME_RANGE', 'message', 'End time must be after start time.'));
+  end if;
+
+  if v_minutes % g.slot_duration_minutes <> 0 then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'INVALID_DURATION',
+      'message', format('Bookings must be in %s-minute blocks.', g.slot_duration_minutes)));
+  end if;
+
+  if v_minutes < g.min_booking_minutes or v_minutes > g.max_booking_minutes then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'INVALID_DURATION',
+      'message', format('This ground accepts %s–%s minute bookings.',
+                        g.min_booking_minutes, g.max_booking_minutes)));
+  end if;
+
+  -- Release lapsed holds
+  update public.bookings
+     set status = 'expired'
+   where ground_id = p_ground_id
+     and status = 'pending'
+     and hold_expires_at is not null
+     and hold_expires_at < now();
+
+  v_expected := v_minutes / g.slot_duration_minutes;
+
+  select count(*)::int, count(*) filter (where a.is_available)::int
+    into v_total, v_avail
+    from public.get_ground_availability(p_ground_id, p_booking_date) a
+   where a.starts_at >= v_start_ts and a.ends_at <= v_end_ts;
+
+  if v_total <> v_expected then
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', 'OUTSIDE_OPENING_HOURS',
+      'message', 'That time is outside this ground''s opening hours.'));
+  end if;
+
+  if v_avail <> v_expected then
+    select a.reason into v_reason
+      from public.get_ground_availability(p_ground_id, p_booking_date) a
+     where a.starts_at >= v_start_ts and a.ends_at <= v_end_ts
+       and not a.is_available
+     limit 1;
+
+    return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+      'code', case v_reason
+                when 'past'          then 'SLOT_IN_PAST'
+                when 'closed'        then 'GROUND_CLOSED'
+                when 'out_of_window' then 'OUTSIDE_BOOKING_WINDOW'
+                else 'SLOT_TAKEN'
+              end,
+      'message', case v_reason
+                   when 'past'          then 'That slot has already started.'
+                   when 'closed'        then 'The ground is closed on this date.'
+                   when 'out_of_window' then 'That date is not open for booking yet.'
+                   else 'Someone just took this slot. Pick another one.'
+                 end));
+  end if;
+
+  v_rate := case
+              when extract(dow from p_booking_date) in (0, 6)
+                then coalesce(g.weekend_price_per_hour, g.price_per_hour)
+              else g.price_per_hour
+            end;
+  v_amount := round(v_rate * (v_minutes / 60.0), 2);
+
+  -- -------------------------------------------------------------------------
+  -- INSERT BOOKING
+  -- -------------------------------------------------------------------------
+  begin
+    insert into public.bookings (
+      booking_ref, ground_id, player_id, booking_date, start_time, end_time,
+      duration_minutes, status, source, price_per_hour, total_amount, currency,
+      commission_rate, commission_amount, contact_name, contact_phone,
+      players_expected, notes, hold_expires_at, phone_verified_at, created_by
+    )
+    values (
+      public.generate_booking_ref(), p_ground_id, null, p_booking_date,
+      p_start_time, p_end_time, v_minutes, 'confirmed', 'web', v_rate, v_amount,
+      g.currency, g.commission_rate, round(v_amount * g.commission_rate, 2),
+      v_clean_name,
+      v_clean_phone,
+      p_players_expected,
+      v_clean_notes,
+      now() + make_interval(mins => v_hold),
+      now(),
+      null
+    )
+    returning * into v_row;
+  exception
+    when exclusion_violation then
+      return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+        'code', 'SLOT_TAKEN', 'message', 'Someone just took this slot. Pick another one.'));
+    when unique_violation then
+      return jsonb_build_object('ok', false, 'error', jsonb_build_object(
+        'code', 'RETRY', 'message', 'Booking reference collision — please retry.'));
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- CONSUME OTP TO PREVENT REPLAY
+  -- -------------------------------------------------------------------------
+  delete from public.auth_otps
+  where phone = v_clean_phone;
+
+  -- -------------------------------------------------------------------------
+  -- OPTIONAL: SAVE TO GUEST PROFILES UPSELL
+  -- -------------------------------------------------------------------------
+  if p_save_info then
+    insert into public.guest_profiles (phone, full_name, email, booking_count, updated_at)
+    values (v_clean_phone, v_clean_name, v_clean_email, 1, now())
+    on conflict (phone) do update
+    set full_name = excluded.full_name,
+        email = coalesce(excluded.email, public.guest_profiles.email),
+        booking_count = public.guest_profiles.booking_count + 1,
+        updated_at = now();
+  end if;
+
+  return jsonb_build_object('ok', true, 'booking', to_jsonb(v_row));
+end;
+$$;
+
+grant execute on function public.create_guest_booking(uuid, date, time, time, text, text, text, text, int, uuid, boolean, int)
+  to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 6. Retrieve Guest Bookings by Verified Phone
+-- ---------------------------------------------------------------------------
+create or replace function public.get_guest_bookings(
+  p_phone              text,
+  p_verification_token uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_clean_phone text;
+  v_verified    boolean := false;
+  v_rows        jsonb;
+begin
+  v_clean_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+
+  if p_verification_token is not null then
+    select exists (
+      select 1 from public.auth_otps
+      where id = p_verification_token
+        and phone = v_clean_phone
+        and verified_at is not null
+        and verified_at > (now() - interval '24 hours')
+    ) into v_verified;
+  end if;
+
+  if not v_verified then
+    return jsonb_build_object('ok', false, 'code', 'UNVERIFIED', 'message', 'Please verify your phone number to view bookings.');
+  end if;
+
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', b.id,
+      'booking_ref', b.booking_ref,
+      'ground_id', b.ground_id,
+      'ground_name', g.name,
+      'ground_slug', g.slug,
+      'city', g.city,
+      'address', g.address,
+      'booking_date', b.booking_date,
+      'start_time', b.start_time,
+      'end_time', b.end_time,
+      'duration_minutes', b.duration_minutes,
+      'status', b.status,
+      'payment_status', b.payment_status,
+      'total_amount', b.total_amount,
+      'currency', b.currency,
+      'contact_name', b.contact_name,
+      'contact_phone', b.contact_phone,
+      'created_at', b.created_at
+    ) order by b.booking_date desc, b.start_time desc
+  ) into v_rows
+  from public.bookings b
+  join public.grounds g on g.id = b.ground_id
+  where b.contact_phone = v_clean_phone
+    and b.status in ('confirmed', 'pending', 'completed');
+
+  return jsonb_build_object('ok', true, 'bookings', coalesce(v_rows, '[]'::jsonb));
+end;
+$$;
+
+grant execute on function public.get_guest_bookings(text, uuid)
+  to anon, authenticated;
+

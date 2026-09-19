@@ -64,3 +64,14 @@ test('method matching is case-insensitive', () => {
   const r = new Router().add('get', '/v1/health', () => 'ok');
   assert.equal(r.find('GET', '/v1/health').handler(), 'ok');
 });
+
+test('buildRouter registers guest booking and otp routes', async () => {
+  const { buildRouter } = await import('../src/router.js');
+  const router = buildRouter();
+
+  assert.ok(router.find('POST', '/v1/auth/booking-otp'));
+  assert.ok(router.find('POST', '/v1/auth/verify-booking-otp'));
+  assert.ok(router.find('POST', '/v1/bookings/guest'));
+  assert.ok(router.find('GET', '/v1/bookings/guest'));
+});
+

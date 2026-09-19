@@ -10,6 +10,7 @@
  */
 
 import { Router } from './lib/router.js';
+import * as auth from './routes/auth.js';
 import * as pub from './routes/public.js';
 import * as me from './routes/me.js';
 import * as bookings from './routes/bookings.js';
@@ -22,6 +23,13 @@ import * as finance from './routes/finance.js';
 export function buildRouter() {
   const r = new Router();
 
+  // -- auth & security (public) ---------------------------------------------
+  r.post('/v1/auth/signup-otp', auth.signupOtp);
+  r.post('/v1/auth/verify-otp', auth.verifyOtp);
+  r.post('/v1/auth/booking-otp', auth.bookingOtp);
+  r.post('/v1/auth/verify-booking-otp', auth.verifyBookingOtp);
+  r.post('/v1/auth/login-check', auth.loginCheck);
+
   // -- public ---------------------------------------------------------------
   r.get('/v1/health', pub.health);
   r.get('/v1/areas', pub.listAreas);
@@ -29,6 +37,10 @@ export function buildRouter() {
   r.get('/v1/grounds/:ref/availability', pub.getAvailability);
   r.get('/v1/grounds/:ref', pub.getGround);
   r.get('/v1/matchmaking/games', games.listGames);
+
+  // -- guest booking (no password required) ---------------------------------
+  r.post('/v1/bookings/guest', bookings.createGuestBooking);
+  r.get('/v1/bookings/guest', bookings.listGuestBookings);
 
   // -- signed-in player -----------------------------------------------------
   r.get('/v1/me', me.getMe);

@@ -49,6 +49,8 @@ export function withCommonHeaders(response, request, env, requestId) {
   const headers = new Headers(response.headers);
   for (const [k, v] of Object.entries(corsHeaders(request, env))) headers.set(k, v);
   headers.set('x-content-type-options', 'nosniff');
+  headers.set('x-frame-options', 'DENY');
+  headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains; preload');
   headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   if (requestId) headers.set('x-request-id', requestId);
   return new Response(response.body, {

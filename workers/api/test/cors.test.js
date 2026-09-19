@@ -49,6 +49,8 @@ test('preflight is 204 for allowed origins and 403 otherwise', () => {
 test('security headers are added to every response', () => {
   const out = withCommonHeaders(json({ ok: true }), req('https://groundsnearme.pk'), env, 'rid-1');
   assert.equal(out.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(out.headers.get('x-frame-options'), 'DENY');
+  assert.match(out.headers.get('strict-transport-security'), /max-age=31536000/);
   assert.equal(out.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
   assert.equal(out.headers.get('x-request-id'), 'rid-1');
   assert.equal(out.headers.get('access-control-allow-origin'), 'https://groundsnearme.pk');
