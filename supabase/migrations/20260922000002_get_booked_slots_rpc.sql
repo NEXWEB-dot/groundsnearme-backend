@@ -26,7 +26,7 @@ as $$
   from public.bookings b
   where b.ground_id    = p_ground_id
     and b.booking_date = p_booking_date
-    and b.status not in ('cancelled', 'expired', 'rejected')
+    and b.status::text not in ('cancelled', 'expired')
   order by b.start_time;
 $$;
 
