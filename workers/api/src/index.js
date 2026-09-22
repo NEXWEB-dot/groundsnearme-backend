@@ -29,6 +29,28 @@ export default {
       return preflight(request, env);
     }
 
+    // Cloudflare Edge Cache for public catalog reads (served from edge in 10ms)
+    const isPublicGet = request.method === 'GET' && (
+      url.pathname.startsWith('/v1/areas') ||
+      url.pathname.startsWith('/v1/grounds') ||
+      url.pathname.startsWith('/v1/health')
+    );
+
+    let cache = null;
+    let cacheKey = null;
+    if (isPublicGet && typeof caches !== 'undefined' && caches.default) {
+      try {
+        cache = caches.default;
+        cacheKey = new Request(url.toString(), request);
+        const hit = await cache.match(cacheKey);
+        if (hit) {
+          const cachedRes = new Response(hit.body, hit);
+          cachedRes.headers.set('X-GNM-Cache', 'HIT');
+          return withCommonHeaders(cachedRes, request, env, requestId);
+        }
+      } catch (_) {}
+    }
+
     let response;
     try {
       response = await handle(request, env, url, workerCtx);
@@ -37,6 +59,14 @@ export default {
         console.error('unhandled', requestId, err?.stack || String(err));
       }
       response = failFromError(err);
+    }
+
+    if (cache && cacheKey && response.status === 200) {
+      try {
+        const cloned = response.clone();
+        cloned.headers.set('X-GNM-Cache', 'MISS');
+        workerCtx.waitUntil(cache.put(cacheKey, cloned));
+      } catch (_) {}
     }
 
     return withCommonHeaders(response, request, env, requestId);
